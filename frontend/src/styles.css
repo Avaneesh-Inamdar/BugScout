@@ -63,10 +63,10 @@ body {
 .logo { font-size: 28px; }
 
 .logo-img {
-  width: 32px;
-  height: 32px;
+  width: 42px;
+  height: 42px;
   object-fit: contain;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 
 .brand-text {
