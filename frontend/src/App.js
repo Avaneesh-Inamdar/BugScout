@@ -543,7 +543,7 @@ function App() {
       {(sharedReport || sharedReportLoading) && (
         <>
           <nav className="navbar">
-            <div className="nav-brand">
+            <div className="nav-brand" onClick={() => { window.location.href = '/'; }} style={{ cursor: 'pointer' }}>
               <span className="logo">🔬</span>
               <span className="brand-text">BugScout</span>
             </div>
@@ -671,7 +671,7 @@ function App() {
       {!sharedReport && !sharedReportLoading && (
         <>
       <nav className="navbar">
-        <div className="nav-brand">
+        <div className="nav-brand" onClick={() => setActiveTab('dashboard')} style={{ cursor: 'pointer' }}>
           <span className="logo">🔬</span>
           <span className="brand-text">BugScout</span>
         </div>
