@@ -771,7 +771,6 @@ function App() {
                       <img src="https://www.google.com/favicon.ico" alt="Google" className="google-icon" />
                       Get Started Free
                     </button>
-                    <p className="hero-note">No credit card required • Free forever for personal use</p>
                   </div>
                   <div className="hero-visual">
                     <div className="hero-mockup">
