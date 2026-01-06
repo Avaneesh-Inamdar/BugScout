@@ -97,9 +97,11 @@ async function executeStep(page, step, elementMap) {
   
   // Try to find element with multiple strategies
   let element = null;
+  let locator = null;
   
   // Strategy 1: Direct selector
   try {
+    locator = page.locator(selector);
     element = await page.$(selector);
   } catch (e) { /* continue */ }
   
@@ -116,7 +118,10 @@ async function executeStep(page, step, elementMap) {
     for (const sel of fallbackSelectors) {
       try {
         element = await page.$(sel);
-        if (element) break;
+        if (element) {
+          locator = page.locator(sel);
+          break;
+        }
       } catch (e) { /* continue */ }
     }
   }
@@ -128,10 +133,33 @@ async function executeStep(page, step, elementMap) {
   // Scroll element into view first
   await element.scrollIntoViewIfNeeded().catch(() => {});
   
+  // Wait for element to be visible and enabled before interacting
+  try {
+    await locator.waitFor({ state: 'visible', timeout: 10000 });
+  } catch (e) {
+    console.log(`Warning: Element may not be fully visible: ${selector}`);
+  }
+  
   // Execute action with force option for stubborn elements
   switch (action) {
     case 'type':
-      await element.fill(value || '');
+      try {
+        // First try normal fill with a shorter timeout
+        await element.fill(value || '', { timeout: 5000 });
+      } catch (e) {
+        // If fill fails, try clicking first to focus, then fill with force
+        console.log(`Fill failed, trying alternative approach for: ${selector}`);
+        try {
+          await element.click({ force: true, timeout: 3000 });
+          await page.waitForTimeout(200);
+          await element.fill(value || '', { force: true, timeout: 5000 });
+        } catch (e2) {
+          // Last resort: use keyboard input
+          console.log(`Force fill failed, using keyboard input for: ${selector}`);
+          await element.click({ force: true });
+          await page.keyboard.type(value || '');
+        }
+      }
       break;
     case 'click':
       try {
