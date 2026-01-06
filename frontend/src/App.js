@@ -832,6 +832,94 @@ function App() {
                   </div>
                 </div>
 
+                <div className="landing-showcase">
+                  <h2>See BugScout in Action</h2>
+                  <p className="showcase-subtitle">Powerful features, beautiful interface</p>
+                  <div className="showcase-grid">
+                    <div className="showcase-item">
+                      <div className="showcase-preview">
+                        <div className="preview-window">
+                          <div className="preview-header">
+                            <span className="dot red"></span>
+                            <span className="dot yellow"></span>
+                            <span className="dot green"></span>
+                            <span className="preview-title">Test Editor</span>
+                          </div>
+                          <div className="preview-content editor-preview">
+                            <div className="preview-test-card">
+                              <div className="ptc-header">
+                                <span className="ptc-status pass">✅</span>
+                                <span className="ptc-name">Login Form Validation</span>
+                              </div>
+                              <div className="ptc-steps">
+                                <div className="ptc-step"><span>1</span> Type "test@email.com"</div>
+                                <div className="ptc-step"><span>2</span> Type "password123"</div>
+                                <div className="ptc-step"><span>3</span> Click Submit</div>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <h3>Visual Test Editor</h3>
+                      <p>Edit test steps with an intuitive drag-and-drop interface</p>
+                    </div>
+                    <div className="showcase-item">
+                      <div className="showcase-preview">
+                        <div className="preview-window">
+                          <div className="preview-header">
+                            <span className="dot red"></span>
+                            <span className="dot yellow"></span>
+                            <span className="dot green"></span>
+                            <span className="preview-title">Accessibility</span>
+                          </div>
+                          <div className="preview-content a11y-preview">
+                            <div className="a11y-score-preview">
+                              <div className="score-ring">87</div>
+                            </div>
+                            <div className="a11y-issues-preview">
+                              <div className="issue-row critical">2 Critical</div>
+                              <div className="issue-row warning">5 Warnings</div>
+                              <div className="issue-row pass">12 Passed</div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <h3>Accessibility Scores</h3>
+                      <p>Get instant WCAG compliance reports with actionable fixes</p>
+                    </div>
+                    <div className="showcase-item">
+                      <div className="showcase-preview">
+                        <div className="preview-window">
+                          <div className="preview-header">
+                            <span className="dot red"></span>
+                            <span className="dot yellow"></span>
+                            <span className="dot green"></span>
+                            <span className="preview-title">Performance</span>
+                          </div>
+                          <div className="preview-content perf-preview">
+                            <div className="perf-metrics">
+                              <div className="perf-metric good">
+                                <span className="metric-val">1.2s</span>
+                                <span className="metric-label">FCP</span>
+                              </div>
+                              <div className="perf-metric good">
+                                <span className="metric-val">2.1s</span>
+                                <span className="metric-label">LCP</span>
+                              </div>
+                              <div className="perf-metric warning">
+                                <span className="metric-val">0.15</span>
+                                <span className="metric-label">CLS</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      <h3>Performance Metrics</h3>
+                      <p>Track Core Web Vitals and optimize load times</p>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="landing-cta">
                   <h2>Ready to catch bugs automatically?</h2>
                   <p>Join developers who trust BugScout for their QA needs</p>
