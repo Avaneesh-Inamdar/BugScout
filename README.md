@@ -222,20 +222,8 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-## 📄 License
-
-This project is open source and available under the MIT License.
-
----
-
 ## 👨‍💻 Author
 
 **Avaneesh Inamdar**
 
 - GitHub: [@Avaneesh-Inamdar](https://github.com/Avaneesh-Inamdar)
-
----
-
-<p align="center">
-  Made with ❤️ using Google Cloud Technologies
-</p>
