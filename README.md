@@ -222,8 +222,12 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ---
 
-## 👨‍💻 Author
+## 👨‍💻 Made By
 
-**Avaneesh Inamdar**
+**The Unexecutables**
 
-- GitHub: [@Avaneesh-Inamdar](https://github.com/Avaneesh-Inamdar)
+---
+
+<p align="center">
+  Made with ❤️ by The Unexecutables using Google Cloud Technologies
+</p>

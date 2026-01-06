@@ -960,6 +960,10 @@ function App() {
                     Sign in with Google
                   </button>
                 </div>
+
+                <footer className="landing-footer">
+                  <p>Made with ❤️ by <strong>The Unexecutables</strong></p>
+                </footer>
               </div>
             ) : (
               <>
