@@ -3,24 +3,58 @@ const { chromium } = require('playwright');
 async function inspect(url) {
   const browser = await chromium.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: [
+      '--no-sandbox', 
+      '--disable-setuid-sandbox',
+      '--disable-blink-features=AutomationControlled',
+      '--disable-infobars',
+      '--window-size=1280,720'
+    ]
   });
   
   try {
     const context = await browser.newContext({
-      viewport: { width: 1280, height: 720 }
+      viewport: { width: 1280, height: 720 },
+      userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+      locale: 'en-US',
+      timezoneId: 'America/New_York'
     });
+    
+    // Remove webdriver property to avoid detection
+    await context.addInitScript(() => {
+      Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+    });
+    
     const page = await context.newPage();
     
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    // Set extra headers to look more like a real browser
+    await page.setExtraHTTPHeaders({
+      'Accept-Language': 'en-US,en;q=0.9',
+      'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
+    });
+    
+    try {
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      // Wait a bit for dynamic content
+      await page.waitForTimeout(2000);
+    } catch (navError) {
+      console.warn(`Navigation warning for ${url}:`, navError.message);
+      // Continue anyway - page might have partially loaded
+    }
+    
+    // Check if page has content
+    const bodyContent = await page.evaluate(() => document.body?.innerHTML?.length || 0);
+    if (bodyContent < 100) {
+      throw new Error('Page appears to be blocked or empty. The website may have bot protection.');
+    }
     
     // Capture full-page screenshot
-    const screenshot = await page.screenshot({ fullPage: true, type: 'png' });
+    const screenshot = await page.screenshot({ fullPage: false, type: 'png' });
     const screenshotBase64 = screenshot.toString('base64');
     
     // Extract visible text
     const visibleText = await page.evaluate(() => {
-      return document.body.innerText.substring(0, 2000);
+      return document.body?.innerText?.substring(0, 2000) || '';
     });
     
     // Extract interactive elements with REAL selectors

@@ -96,11 +96,17 @@ function App() {
         body: JSON.stringify({ url, preset: presetType, userId: user.uid })
       });
       const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
       setCurrentRun(data);
       setActiveTab('editor');
       fetchTestRuns(user.uid);
     } catch (err) {
-      alert('Failed to generate tests: ' + err.message);
+      const errorMsg = err.message.includes('blocked') || err.message.includes('empty') 
+        ? `This website has bot protection and cannot be tested automatically. Try a different URL or a site you own.`
+        : `Failed to generate tests: ${err.message}`;
+      alert(errorMsg);
     } finally {
       setLoading(false);
     }
