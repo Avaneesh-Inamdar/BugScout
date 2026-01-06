@@ -81,7 +81,7 @@ Generate shareable links for test reports:
 - **Playwright** - Browser automation for test execution
 
 ### AI/ML
-- **Groq API** - LLM-powered test generation and bug explanations
+- **Llama 3.1** - LLM-powered test generation and bug explanations
 
 ---
 
