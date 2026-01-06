@@ -229,5 +229,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ---
 
 <p align="center">
-  Made with ❤️ by The Unexecutables using Google Cloud Technologies
+  Made by The Unexecutables using Google Technologies
 </p>
