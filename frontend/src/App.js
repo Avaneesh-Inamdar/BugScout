@@ -760,6 +760,12 @@ function App() {
               >
                 🎬 Recorder
               </button>
+              <button 
+                className={`nav-tab ${activeTab === 'guide' ? 'active' : ''}`}
+                onClick={() => setActiveTab('guide')}
+              >
+                📖 Guide
+              </button>
             </>
           )}
         </div>
@@ -1813,6 +1819,330 @@ function App() {
                 <li>Use unique identifiers (IDs, data-testid) on elements for more reliable playback</li>
                 <li>After saving, you can edit the recorded steps in the Editor tab</li>
               </ul>
+            </div>
+          </div>
+        </main>
+      )}
+
+      {/* Guide Tab */}
+      {activeTab === 'guide' && (
+        <main className="main-content">
+          <div className="guide-page">
+            <div className="guide-header">
+              <h1>📖 How to Use BugScout</h1>
+              <p>Complete guide to all features and capabilities</p>
+            </div>
+
+            <div className="guide-sections">
+              {/* Getting Started */}
+              <div className="guide-section">
+                <div className="guide-section-header">
+                  <span className="guide-section-icon">🚀</span>
+                  <h2>Getting Started</h2>
+                </div>
+                <div className="guide-section-content">
+                  <div className="guide-step">
+                    <div className="guide-step-number">1</div>
+                    <div className="guide-step-content">
+                      <h3>Sign In</h3>
+                      <p>Sign in with your Google account to access all features. Your test runs and results are securely stored and linked to your account.</p>
+                    </div>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-number">2</div>
+                    <div className="guide-step-content">
+                      <h3>Enter a URL</h3>
+                      <p>On the Dashboard or New Test tab, paste the URL of the webpage you want to test. Make sure the URL is publicly accessible.</p>
+                    </div>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-number">3</div>
+                    <div className="guide-step-content">
+                      <h3>Generate Tests</h3>
+                      <p>Click "Generate Tests" and BugScout will analyze the page, identify interactive elements, and create relevant test cases automatically.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Test Generation */}
+              <div className="guide-section">
+                <div className="guide-section-header">
+                  <span className="guide-section-icon">🤖</span>
+                  <h2>AI Test Generation</h2>
+                </div>
+                <div className="guide-section-content">
+                  <p className="guide-intro">BugScout uses AI to automatically generate test cases based on your page content.</p>
+                  
+                  <div className="guide-feature-grid">
+                    <div className="guide-feature">
+                      <h4>Test Presets</h4>
+                      <ul>
+                        <li><strong>Auto Detect:</strong> AI analyzes the page and determines the best test strategy</li>
+                        <li><strong>Login Flow:</strong> Tests for email/password validation, empty submissions, invalid formats</li>
+                        <li><strong>Signup Flow:</strong> Registration form validation, password requirements, field validation</li>
+                        <li><strong>Checkout:</strong> Payment form testing, required field validation</li>
+                        <li><strong>Search:</strong> Search functionality, empty queries, special characters</li>
+                      </ul>
+                    </div>
+                    <div className="guide-feature">
+                      <h4>Generated Test Types</h4>
+                      <ul>
+                        <li><strong>Negative Tests:</strong> Invalid inputs, empty submissions, boundary violations</li>
+                        <li><strong>Positive Tests:</strong> Valid data submission, expected user flows</li>
+                        <li><strong>Edge Cases:</strong> Special characters, long inputs, unusual scenarios</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Test Editor */}
+              <div className="guide-section">
+                <div className="guide-section-header">
+                  <span className="guide-section-icon">✏️</span>
+                  <h2>Test Editor</h2>
+                </div>
+                <div className="guide-section-content">
+                  <p className="guide-intro">Review, modify, and customize your test cases before execution.</p>
+                  
+                  <div className="guide-feature-grid">
+                    <div className="guide-feature">
+                      <h4>Editing Tests</h4>
+                      <ul>
+                        <li>Click on any test to expand and view its steps</li>
+                        <li>Modify test names and expected outcomes</li>
+                        <li>Add, remove, or reorder test steps</li>
+                        <li>Change action types: click, type, select, check, uncheck</li>
+                      </ul>
+                    </div>
+                    <div className="guide-feature">
+                      <h4>Test Steps</h4>
+                      <ul>
+                        <li><strong>Action:</strong> What to do (click, type, select)</li>
+                        <li><strong>Target:</strong> CSS selector for the element</li>
+                        <li><strong>Value:</strong> Text to type or option to select</li>
+                      </ul>
+                    </div>
+                    <div className="guide-feature">
+                      <h4>Custom Tests</h4>
+                      <ul>
+                        <li>Click "Add Custom Test" to create your own test case</li>
+                        <li>Define custom steps for specific scenarios</li>
+                        <li>Combine with AI-generated tests for comprehensive coverage</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Running Tests */}
+              <div className="guide-section">
+                <div className="guide-section-header">
+                  <span className="guide-section-icon">▶️</span>
+                  <h2>Running Tests</h2>
+                </div>
+                <div className="guide-section-content">
+                  <p className="guide-intro">Execute your tests and view detailed results with screenshots.</p>
+                  
+                  <div className="guide-step">
+                    <div className="guide-step-number">1</div>
+                    <div className="guide-step-content">
+                      <h3>Execute Tests</h3>
+                      <p>Click "Run Tests" to execute all test cases. BugScout opens a headless browser, navigates to your URL, and performs each test step.</p>
+                    </div>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-number">2</div>
+                    <div className="guide-step-content">
+                      <h3>View Results</h3>
+                      <p>Each test shows Pass ✅ or Fail ❌ status. Failed tests include error messages and AI-powered explanations of what went wrong.</p>
+                    </div>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-number">3</div>
+                    <div className="guide-step-content">
+                      <h3>Screenshots</h3>
+                      <p>Before and after screenshots are captured for each test. Click any screenshot to view it full-size. Error screenshots show the page state when a test failed.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Accessibility */}
+              <div className="guide-section">
+                <div className="guide-section-header">
+                  <span className="guide-section-icon">♿</span>
+                  <h2>Accessibility Auditing</h2>
+                </div>
+                <div className="guide-section-content">
+                  <p className="guide-intro">Run comprehensive accessibility audits based on WCAG 2.1 guidelines.</p>
+                  
+                  <div className="guide-feature-grid">
+                    <div className="guide-feature">
+                      <h4>How to Run</h4>
+                      <ol>
+                        <li>Go to the Accessibility tab</li>
+                        <li>Enter the URL you want to audit</li>
+                        <li>Click "Run Accessibility Audit"</li>
+                        <li>Review the score and issues found</li>
+                      </ol>
+                    </div>
+                    <div className="guide-feature">
+                      <h4>Issue Severity</h4>
+                      <ul>
+                        <li><strong>Critical:</strong> Blocks users from accessing content</li>
+                        <li><strong>Serious:</strong> Creates significant barriers</li>
+                        <li><strong>Moderate:</strong> Causes frustration or confusion</li>
+                        <li><strong>Minor:</strong> Best practice improvements</li>
+                      </ul>
+                    </div>
+                    <div className="guide-feature">
+                      <h4>Common Issues Detected</h4>
+                      <ul>
+                        <li>Missing alt text on images</li>
+                        <li>Low color contrast ratios</li>
+                        <li>Missing form labels</li>
+                        <li>Keyboard navigation issues</li>
+                        <li>Missing ARIA attributes</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Performance */}
+              <div className="guide-section">
+                <div className="guide-section-header">
+                  <span className="guide-section-icon">⚡</span>
+                  <h2>Performance Analysis</h2>
+                </div>
+                <div className="guide-section-content">
+                  <p className="guide-intro">Measure Core Web Vitals and get optimization recommendations.</p>
+                  
+                  <div className="guide-feature-grid">
+                    <div className="guide-feature">
+                      <h4>Metrics Measured</h4>
+                      <ul>
+                        <li><strong>FCP (First Contentful Paint):</strong> Time until first content appears. Good: &lt;1.8s</li>
+                        <li><strong>LCP (Largest Contentful Paint):</strong> Time until main content loads. Good: &lt;2.5s</li>
+                        <li><strong>CLS (Cumulative Layout Shift):</strong> Visual stability score. Good: &lt;0.1</li>
+                        <li><strong>TTFB (Time to First Byte):</strong> Server response time. Good: &lt;600ms</li>
+                      </ul>
+                    </div>
+                    <div className="guide-feature">
+                      <h4>Resource Analysis</h4>
+                      <ul>
+                        <li>Total page size breakdown</li>
+                        <li>Number of requests by type</li>
+                        <li>JavaScript, CSS, image sizes</li>
+                        <li>Third-party resource impact</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Flow Recorder */}
+              <div className="guide-section">
+                <div className="guide-section-header">
+                  <span className="guide-section-icon">🎬</span>
+                  <h2>Flow Recorder</h2>
+                </div>
+                <div className="guide-section-content">
+                  <p className="guide-intro">Record your interactions and convert them into automated tests.</p>
+                  
+                  <div className="guide-step">
+                    <div className="guide-step-number">1</div>
+                    <div className="guide-step-content">
+                      <h3>Start Recording</h3>
+                      <p>Enter a URL and click "Start Recording". A browser window will open where you can interact with the page.</p>
+                    </div>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-number">2</div>
+                    <div className="guide-step-content">
+                      <h3>Perform Actions</h3>
+                      <p>Click buttons, fill forms, navigate pages - all your interactions are captured automatically. The step count updates in real-time.</p>
+                    </div>
+                  </div>
+                  <div className="guide-step">
+                    <div className="guide-step-number">3</div>
+                    <div className="guide-step-content">
+                      <h3>Save & Edit</h3>
+                      <p>Click "Stop & Save" to convert your recording into a test. You can then edit the steps in the Editor tab before running.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Sharing */}
+              <div className="guide-section">
+                <div className="guide-section-header">
+                  <span className="guide-section-icon">📤</span>
+                  <h2>Sharing Reports</h2>
+                </div>
+                <div className="guide-section-content">
+                  <p className="guide-intro">Share test results with your team without requiring them to sign in.</p>
+                  
+                  <div className="guide-feature-grid">
+                    <div className="guide-feature">
+                      <h4>Creating Share Links</h4>
+                      <ol>
+                        <li>Open a completed test run in the Editor</li>
+                        <li>Click the "Share" button</li>
+                        <li>Copy the generated link</li>
+                        <li>Send to anyone - no login required to view</li>
+                      </ol>
+                    </div>
+                    <div className="guide-feature">
+                      <h4>Share Options</h4>
+                      <ul>
+                        <li>Set expiration time for links</li>
+                        <li>View count tracking</li>
+                        <li>Revoke access anytime</li>
+                        <li>Full test results visible to viewers</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Tips */}
+              <div className="guide-section tips">
+                <div className="guide-section-header">
+                  <span className="guide-section-icon">💡</span>
+                  <h2>Pro Tips</h2>
+                </div>
+                <div className="guide-section-content">
+                  <div className="guide-tips-grid">
+                    <div className="guide-tip">
+                      <h4>🎯 Better Selectors</h4>
+                      <p>Add data-testid attributes to your elements for more reliable test targeting. BugScout prioritizes these over generic selectors.</p>
+                    </div>
+                    <div className="guide-tip">
+                      <h4>🔄 Re-run Failed Tests</h4>
+                      <p>If a test fails due to timing issues, try running it again. Some dynamic pages need multiple attempts.</p>
+                    </div>
+                    <div className="guide-tip">
+                      <h4>📱 Test Responsively</h4>
+                      <p>Tests run at 1280x720 viewport. For mobile testing, consider testing your responsive breakpoints separately.</p>
+                    </div>
+                    <div className="guide-tip">
+                      <h4>🔒 Bot Protection</h4>
+                      <p>Some websites block automated testing. If tests fail immediately, the site may have bot protection enabled.</p>
+                    </div>
+                    <div className="guide-tip">
+                      <h4>📊 Export Results</h4>
+                      <p>Use the Export button to download test results as JSON for integration with your CI/CD pipeline.</p>
+                    </div>
+                    <div className="guide-tip">
+                      <h4>🔍 AI Suggestions</h4>
+                      <p>Check the Suggestions tab for AI-recommended test cases you might have missed.</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </main>
