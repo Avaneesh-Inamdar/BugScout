@@ -150,7 +150,7 @@ cd frontend && npm install
 3. **Configure environment variables**
 ```bash
 # Root .env
-GROQ_API_KEY=your_groq_api_key
+GROQ_API_KEY=your_api_key
 PORT=5000
 
 # frontend/.env.development
