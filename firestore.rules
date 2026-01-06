@@ -1,8 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /testRuns/{document=**} {
-      allow read, write: if true;
+    match /{document=**} {
+      allow read, write: if false;  // Block all client access - Admin SDK bypasses this
     }
   }
 }

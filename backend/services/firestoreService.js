@@ -2,9 +2,25 @@ const admin = require('firebase-admin');
 
 // Initialize Firebase Admin with project config
 if (!admin.apps.length) {
+  let credential;
+  
+  // Option 1: Service account JSON string from env var (for Render/cloud deployment)
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    credential = admin.credential.cert(serviceAccount);
+  } 
+  // Option 2: Service account file path
+  else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
+    credential = admin.credential.applicationDefault();
+  }
+  // Option 3: Default credentials (for local dev with gcloud auth)
+  else {
+    credential = admin.credential.applicationDefault();
+  }
+
   admin.initializeApp({
     projectId: 'gdg-hackathon-6fc99',
-    credential: admin.credential.applicationDefault()
+    credential
   });
 }
 

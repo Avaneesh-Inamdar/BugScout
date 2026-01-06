@@ -1,5 +1,6 @@
 const { chromium } = require('playwright');
 const storageService = require('./storageService');
+const bugExplainer = require('./bugExplainer');
 
 async function execute(testRun) {
   const browser = await chromium.launch({
@@ -15,6 +16,13 @@ async function execute(testRun) {
   try {
     for (const test of testRun.tests) {
       const result = await executeTest(browser, testRun.url, test, testRun.id, elementMap);
+      
+      // If test failed, get AI explanation
+      if (result.status === 'fail') {
+        console.log(`[${testRun.id}] Getting AI explanation for failed test: ${test.name}`);
+        result.explanation = await bugExplainer.explainFailure(result, testRun.pageData);
+      }
+      
       results.push(result);
     }
   } finally {

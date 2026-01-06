@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './firebase'; // Initialize Firebase
+import './firebase';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
@@ -9,11 +9,14 @@ function App() {
   const [currentRun, setCurrentRun] = useState(null);
   const [loading, setLoading] = useState(false);
   const [modalImage, setModalImage] = useState(null);
-  const [showAddTest, setShowAddTest] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [testPreset, setTestPreset] = useState('auto');
 
   useEffect(() => {
     fetchTestRuns();
-  }, []);
+    document.body.classList.toggle('dark', darkMode);
+  }, [darkMode]);
 
   const fetchTestRuns = async () => {
     try {
@@ -25,17 +28,23 @@ function App() {
     }
   };
 
-  const generateTests = async () => {
+  const toggleDarkMode = () => {
+    setDarkMode(!darkMode);
+    localStorage.setItem('darkMode', !darkMode);
+  };
+
+  const generateTests = async (presetType = testPreset) => {
     if (!url) return;
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/generate-tests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url })
+        body: JSON.stringify({ url, preset: presetType })
       });
       const data = await res.json();
       setCurrentRun(data);
+      setActiveTab('editor');
       fetchTestRuns();
     } catch (err) {
       alert('Failed to generate tests: ' + err.message);
@@ -106,7 +115,6 @@ function App() {
     const updated = { ...currentRun };
     updated.tests.push(newTest);
     setCurrentRun(updated);
-    setShowAddTest(false);
   };
 
   const saveChanges = async () => {
@@ -126,6 +134,7 @@ function App() {
       const res = await fetch(`${API_URL}/api/test-runs/${id}`);
       const data = await res.json();
       setCurrentRun(data);
+      setActiveTab('editor');
     } catch (err) {
       console.error('Failed to load run:', err);
     }
@@ -143,6 +152,25 @@ function App() {
     }
   };
 
+  const exportResults = () => {
+    if (!currentRun) return;
+    const report = {
+      ...currentRun,
+      exportedAt: new Date().toISOString(),
+      summary: {
+        total: currentRun.tests.length,
+        passed: currentRun.tests.filter(t => t.status === 'pass').length,
+        failed: currentRun.tests.filter(t => t.status === 'fail').length
+      }
+    };
+    const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `test-report-${currentRun.id}.json`;
+    a.click();
+  };
+
   const getStatusClass = (status) => {
     if (status === 'pass' || status === 'completed') return 'status-pass';
     if (status === 'fail' || status === 'completed_with_failures') return 'status-fail';
@@ -150,190 +178,391 @@ function App() {
     return 'status-pending';
   };
 
+  // Stats calculations
+  const stats = {
+    totalRuns: testRuns.length,
+    passed: testRuns.filter(r => r.status === 'completed').length,
+    failed: testRuns.filter(r => r.status === 'completed_with_failures').length,
+    pending: testRuns.filter(r => r.status === 'pending_review').length
+  };
+
   const elements = currentRun?.pageData?.elements || [];
 
-  return (
-    <div className="app">
-      <header>
-        <h1>🤖 Autonomous QA Agent</h1>
-        <p>Generate and execute automated tests for any website</p>
-      </header>
+  const presets = [
+    { id: 'auto', name: 'Auto Detect', icon: '🤖', desc: 'AI analyzes the page' },
+    { id: 'login', name: 'Login Flow', icon: '🔐', desc: 'Email, password, submit' },
+    { id: 'signup', name: 'Signup Flow', icon: '📝', desc: 'Registration forms' },
+    { id: 'checkout', name: 'Checkout', icon: '🛒', desc: 'Payment flows' },
+    { id: 'search', name: 'Search', icon: '🔍', desc: 'Search functionality' }
+  ];
 
-      <div className="card">
-        <h2>🔗 Test a Website</h2>
-        <div className="input-group">
-          <input
-            type="url"
-            placeholder="Enter website URL (e.g., https://example.com/login)"
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && generateTests()}
-          />
-          <button className="btn btn-primary" onClick={generateTests} disabled={loading || !url}>
-            {loading ? 'Processing...' : 'Generate Tests'}
+  return (
+    <div className={`app ${darkMode ? 'dark' : ''}`}>
+      <nav className="navbar">
+        <div className="nav-brand">
+          <span className="logo">🔬</span>
+          <span className="brand-text">BugScout</span>
+        </div>
+        <div className="nav-tabs">
+          <button 
+            className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+            onClick={() => setActiveTab('dashboard')}
+          >
+            📊 Dashboard
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'new' ? 'active' : ''}`}
+            onClick={() => setActiveTab('new')}
+          >
+            ➕ New Test
+          </button>
+          {currentRun && (
+            <button 
+              className={`nav-tab ${activeTab === 'editor' ? 'active' : ''}`}
+              onClick={() => setActiveTab('editor')}
+            >
+              ✏️ Editor
+            </button>
+          )}
+          <button 
+            className={`nav-tab ${activeTab === 'history' ? 'active' : ''}`}
+            onClick={() => setActiveTab('history')}
+          >
+            📜 History
           </button>
         </div>
-      </div>
+        <button className="theme-toggle" onClick={toggleDarkMode}>
+          {darkMode ? '☀️' : '🌙'}
+        </button>
+      </nav>
 
-      {currentRun && (
-        <div className="card">
-          <div className="card-header">
-            <h2>📋 Test Plan: {currentRun.url}</h2>
-            <button className="btn btn-secondary" onClick={addCustomTest}>
-              ➕ Add Custom Test
+      <main className="main-content">
+        {/* Dashboard Tab */}
+        {activeTab === 'dashboard' && (
+          <div className="dashboard">
+            <h1>Welcome to BugScout</h1>
+            <p className="subtitle">AI-powered autonomous QA testing</p>
+            
+            <div className="stats-grid">
+              <div className="stat-card">
+                <div className="stat-icon">📋</div>
+                <div className="stat-value">{stats.totalRuns}</div>
+                <div className="stat-label">Total Tests</div>
+              </div>
+              <div className="stat-card success">
+                <div className="stat-icon">✅</div>
+                <div className="stat-value">{stats.passed}</div>
+                <div className="stat-label">Passed</div>
+              </div>
+              <div className="stat-card danger">
+                <div className="stat-icon">❌</div>
+                <div className="stat-value">{stats.failed}</div>
+                <div className="stat-label">Failed</div>
+              </div>
+              <div className="stat-card warning">
+                <div className="stat-icon">⏳</div>
+                <div className="stat-value">{stats.pending}</div>
+                <div className="stat-label">Pending</div>
+              </div>
+            </div>
+
+            <div className="quick-start">
+              <h2>Quick Start</h2>
+              <div className="input-group-large">
+                <input
+                  type="url"
+                  placeholder="Paste any URL to start testing..."
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && generateTests()}
+                />
+                <button 
+                  className="btn btn-primary btn-large" 
+                  onClick={() => generateTests()}
+                  disabled={loading || !url}
+                >
+                  {loading ? <span className="spinner"></span> : '🚀'} Start Testing
+                </button>
+              </div>
+            </div>
+
+            {testRuns.length > 0 && (
+              <div className="recent-tests">
+                <h2>Recent Tests</h2>
+                <div className="recent-grid">
+                  {testRuns.slice(0, 4).map(run => (
+                    <div key={run.id} className="recent-card" onClick={() => loadRun(run.id)}>
+                      <div className="recent-url">{new URL(run.url).hostname}</div>
+                      <div className="recent-meta">
+                        <span className={`status-dot ${getStatusClass(run.status)}`}></span>
+                        <span>{new Date(run.createdAt).toLocaleDateString()}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* New Test Tab */}
+        {activeTab === 'new' && (
+          <div className="new-test">
+            <h1>Create New Test</h1>
+            <p className="subtitle">Enter a URL and choose a testing strategy</p>
+
+            <div className="card">
+              <label className="input-label">Target URL</label>
+              <div className="input-group-large">
+                <input
+                  type="url"
+                  placeholder="https://example.com/login"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                />
+              </div>
+            </div>
+
+            <div className="card">
+              <label className="input-label">Test Preset</label>
+              <div className="preset-grid">
+                {presets.map(preset => (
+                  <div 
+                    key={preset.id}
+                    className={`preset-card ${testPreset === preset.id ? 'selected' : ''}`}
+                    onClick={() => setTestPreset(preset.id)}
+                  >
+                    <div className="preset-icon">{preset.icon}</div>
+                    <div className="preset-name">{preset.name}</div>
+                    <div className="preset-desc">{preset.desc}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <button 
+              className="btn btn-primary btn-large btn-full"
+              onClick={() => generateTests()}
+              disabled={loading || !url}
+            >
+              {loading ? <><span className="spinner"></span> Analyzing Page...</> : '🔬 Generate Test Plan'}
             </button>
           </div>
-          <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-            <span className={`status-badge ${getStatusClass(currentRun.status)}`}>
-              {currentRun.status}
-            </span>
-            <span className="test-type">Page Type: {currentRun.pageData?.pageType}</span>
-          </div>
-          {currentRun.confidence && (
-            <p className="confidence">AI Confidence: {(currentRun.confidence * 100).toFixed(0)}%</p>
-          )}
+        )}
 
-          <div className="test-list">
-            {currentRun.tests.map((test, tIdx) => (
-              <div key={test.id} className={`test-item ${test.type === 'custom' ? 'custom-test' : ''}`}>
-                <div className="test-header">
-                  <div style={{ flex: 1 }}>
+        {/* Editor Tab */}
+        {activeTab === 'editor' && currentRun && (
+          <div className="editor">
+            <div className="editor-header">
+              <div>
+                <h1>{new URL(currentRun.url).hostname}</h1>
+                <p className="subtitle">{currentRun.url}</p>
+              </div>
+              <div className="editor-actions">
+                <button className="btn btn-outline" onClick={exportResults}>
+                  📥 Export
+                </button>
+                <button className="btn btn-secondary" onClick={addCustomTest}>
+                  ➕ Add Test
+                </button>
+                <button 
+                  className="btn btn-success"
+                  onClick={executeTests}
+                  disabled={loading}
+                >
+                  {loading ? <span className="spinner"></span> : '▶️'} Run All
+                </button>
+              </div>
+            </div>
+
+            <div className="editor-meta">
+              <span className={`status-badge ${getStatusClass(currentRun.status)}`}>
+                {currentRun.status.replace(/_/g, ' ')}
+              </span>
+              <span className="meta-item">📄 {currentRun.pageData?.pageType || 'Unknown'} page</span>
+              <span className="meta-item">🧪 {currentRun.tests.length} tests</span>
+              {currentRun.confidence && (
+                <span className="meta-item">🎯 {(currentRun.confidence * 100).toFixed(0)}% confidence</span>
+              )}
+            </div>
+
+            <div className="test-list">
+              {currentRun.tests.map((test, tIdx) => (
+                <div key={test.id} className={`test-card ${test.type === 'custom' ? 'custom' : ''}`}>
+                  <div className="test-card-header">
                     <input
                       className="test-name-input"
                       value={test.name}
                       onChange={(e) => updateTest(tIdx, 'name', e.target.value)}
                     />
-                    <span className={`test-type-badge ${test.type === 'custom' ? 'custom' : 'auto'}`}>
-                      {test.type === 'custom' ? '🛠 Custom' : '🤖 Auto'} • {test.type === 'custom' ? '' : test.type}
-                    </span>
-                  </div>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <span className={`status-badge ${getStatusClass(test.status)}`}>
-                      {test.status}
-                    </span>
-                    <button className="btn btn-danger btn-sm" onClick={() => deleteTest(tIdx)}>🗑️</button>
-                  </div>
-                </div>
-
-                <div className="step-list">
-                  {test.steps.map((step, sIdx) => (
-                    <div key={sIdx} className="step-item">
-                      <span className="step-num">{sIdx + 1}</span>
-                      <select
-                        value={step.action}
-                        onChange={(e) => updateStep(tIdx, sIdx, 'action', e.target.value)}
-                      >
-                        <option value="click">Click</option>
-                        <option value="type">Type</option>
-                      </select>
-                      
-                      <select
-                        value={step.target}
-                        onChange={(e) => updateStep(tIdx, sIdx, 'target', e.target.value)}
-                        className="target-select"
-                      >
-                        <option value="">-- Select Element --</option>
-                        {elements.map(el => (
-                          <option key={el.id} value={el.id}>
-                            {el.id}: {el.role || el.tagName} {el.visibleText ? `"${el.visibleText.substring(0,20)}"` : ''} {el.placeholder ? `[${el.placeholder}]` : ''}
-                          </option>
-                        ))}
-                      </select>
-                      
-                      {step.action === 'type' && (
-                        <input
-                          placeholder="Value to type"
-                          value={step.value || ''}
-                          onChange={(e) => updateStep(tIdx, sIdx, 'value', e.target.value)}
-                          className="value-input"
-                        />
-                      )}
-                      
-                      <button className="btn btn-icon" onClick={() => removeStep(tIdx, sIdx)} title="Remove step">✕</button>
+                    <div className="test-badges">
+                      <span className={`type-badge ${test.type}`}>
+                        {test.type === 'custom' ? '🛠️' : test.type === 'negative' ? '⚠️' : '✓'} {test.type}
+                      </span>
+                      <span className={`status-badge sm ${getStatusClass(test.status)}`}>
+                        {test.status}
+                      </span>
+                      <button className="btn-icon" onClick={() => deleteTest(tIdx)}>🗑️</button>
                     </div>
-                  ))}
-                  <button className="btn btn-sm btn-outline" onClick={() => addStep(tIdx)}>+ Add Step</button>
-                </div>
+                  </div>
 
-                <div className="expected-row">
-                  <label>Expected:</label>
-                  <input
-                    value={test.expected || ''}
-                    onChange={(e) => updateTest(tIdx, 'expected', e.target.value)}
-                    placeholder="What should happen?"
-                  />
-                </div>
-
-                {test.error && <div className="error-msg">❌ {test.error}</div>}
-
-                {test.screenshots?.length > 0 && (
-                  <div className="screenshots">
-                    {test.screenshots.map((src, i) => (
-                      <img
-                        key={i}
-                        src={`${API_URL}${src}`}
-                        alt={`Screenshot ${i + 1}`}
-                        className="screenshot-thumb"
-                        onClick={() => setModalImage(`${API_URL}${src}`)}
-                      />
+                  <div className="steps-container">
+                    {test.steps.map((step, sIdx) => (
+                      <div key={sIdx} className="step-row">
+                        <span className="step-number">{sIdx + 1}</span>
+                        <select
+                          value={step.action}
+                          onChange={(e) => updateStep(tIdx, sIdx, 'action', e.target.value)}
+                          className="step-action"
+                        >
+                          <option value="click">Click</option>
+                          <option value="type">Type</option>
+                          <option value="wait">Wait</option>
+                          <option value="assert">Assert</option>
+                        </select>
+                        <select
+                          value={step.target}
+                          onChange={(e) => updateStep(tIdx, sIdx, 'target', e.target.value)}
+                          className="step-target"
+                        >
+                          <option value="">Select element...</option>
+                          {elements.map(el => (
+                            <option key={el.id} value={el.id}>
+                              {el.id}: {el.role || el.tagName} {el.visibleText ? `"${el.visibleText.substring(0,15)}"` : ''} {el.placeholder ? `[${el.placeholder}]` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        {(step.action === 'type' || step.action === 'wait') && (
+                          <input
+                            placeholder={step.action === 'wait' ? 'ms' : 'Value'}
+                            value={step.value || ''}
+                            onChange={(e) => updateStep(tIdx, sIdx, 'value', e.target.value)}
+                            className="step-value"
+                          />
+                        )}
+                        <button className="btn-icon sm" onClick={() => removeStep(tIdx, sIdx)}>✕</button>
+                      </div>
                     ))}
+                    <button className="btn btn-ghost" onClick={() => addStep(tIdx)}>+ Add Step</button>
                   </div>
-                )}
-              </div>
-            ))}
-          </div>
 
-          <div className="actions">
-            <button className="btn btn-primary" onClick={saveChanges}>
-              💾 Save Changes
-            </button>
-            <button
-              className="btn btn-success"
-              onClick={executeTests}
-              disabled={loading || currentRun.status === 'running'}
-            >
-              {loading ? '⏳ Running...' : '▶️ Run Tests'}
-            </button>
-          </div>
-        </div>
-      )}
-
-      {testRuns.length > 0 && (
-        <div className="card">
-          <h2>📜 Test History</h2>
-          <div className="history-list">
-            {testRuns.map((run) => (
-              <div
-                key={run.id}
-                className={`history-item ${currentRun?.id === run.id ? 'active' : ''}`}
-                onClick={() => loadRun(run.id)}
-              >
-                <div>
-                  <div className="history-url">{run.url}</div>
-                  <div className="history-date">
-                    {new Date(run.createdAt).toLocaleString()}
+                  <div className="expected-section">
+                    <label>Expected Result:</label>
+                    <input
+                      value={test.expected || ''}
+                      onChange={(e) => updateTest(tIdx, 'expected', e.target.value)}
+                      placeholder="What should happen after these steps?"
+                    />
                   </div>
+
+                  {test.error && <div className="error-box">❌ {test.error}</div>}
+
+                  {test.explanation && (
+                    <div className="ai-explanation">
+                      <div className="explanation-header">
+                        <span className="ai-badge">🤖 AI Analysis</span>
+                        <span className={`severity-badge ${test.explanation.severity}`}>
+                          {test.explanation.severity}
+                        </span>
+                      </div>
+                      <p className="explanation-summary">{test.explanation.summary}</p>
+                      <div className="explanation-details">
+                        <div className="explanation-item">
+                          <strong>What went wrong:</strong>
+                          <p>{test.explanation.whatWentWrong}</p>
+                        </div>
+                        <div className="explanation-item">
+                          <strong>Likely cause:</strong>
+                          <p>{test.explanation.likelyCause}</p>
+                        </div>
+                        <div className="explanation-item">
+                          <strong>Suggested fix:</strong>
+                          <p>{test.explanation.suggestedFix}</p>
+                        </div>
+                        {test.explanation.tips?.length > 0 && (
+                          <div className="explanation-tips">
+                            <strong>Tips:</strong>
+                            <ul>
+                              {test.explanation.tips.map((tip, i) => (
+                                <li key={i}>{tip}</li>
+                              ))}
+                            </ul>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {test.screenshots?.length > 0 && (
+                    <div className="screenshots-row">
+                      {test.screenshots.map((src, i) => (
+                        <img
+                          key={i}
+                          src={`${API_URL}${src}`}
+                          alt={`Screenshot ${i + 1}`}
+                          className="screenshot-thumb"
+                          onClick={() => setModalImage(`${API_URL}${src}`)}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                  <span className={`status-badge ${getStatusClass(run.status)}`}>
-                    {run.status}
-                  </span>
-                  <button
-                    className="btn btn-danger btn-sm"
-                    onClick={(e) => deleteRun(run.id, e)}
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* History Tab */}
+        {activeTab === 'history' && (
+          <div className="history">
+            <h1>Test History</h1>
+            <p className="subtitle">{testRuns.length} test runs</p>
+
+            {testRuns.length === 0 ? (
+              <div className="empty-state">
+                <div className="empty-icon">📭</div>
+                <p>No tests yet. Create your first test!</p>
+                <button className="btn btn-primary" onClick={() => setActiveTab('new')}>
+                  Create Test
+                </button>
+              </div>
+            ) : (
+              <div className="history-table">
+                {testRuns.map(run => (
+                  <div 
+                    key={run.id} 
+                    className={`history-row ${currentRun?.id === run.id ? 'active' : ''}`}
+                    onClick={() => loadRun(run.id)}
                   >
-                    🗑️
-                  </button>
-                </div>
+                    <div className="history-main">
+                      <div className="history-url">{run.url}</div>
+                      <div className="history-date">{new Date(run.createdAt).toLocaleString()}</div>
+                    </div>
+                    <div className="history-stats">
+                      <span className="test-count">{run.tests?.length || 0} tests</span>
+                      <span className={`status-badge ${getStatusClass(run.status)}`}>
+                        {run.status.replace(/_/g, ' ')}
+                      </span>
+                      <button 
+                        className="btn-icon danger"
+                        onClick={(e) => deleteRun(run.id, e)}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
+                ))}
               </div>
-            ))}
+            )}
           </div>
-        </div>
-      )}
+        )}
+      </main>
 
+      {/* Screenshot Modal */}
       {modalImage && (
         <div className="modal-overlay" onClick={() => setModalImage(null)}>
-          <div className="modal-content">
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setModalImage(null)}>✕</button>
             <img src={modalImage} alt="Screenshot" />
           </div>
         </div>
