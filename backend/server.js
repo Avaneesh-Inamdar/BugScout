@@ -286,6 +286,17 @@ app.get('/api/recording/sessions', (req, res) => {
   res.json(sessions);
 });
 
+// Admin - Delete old test runs without userId (cleanup)
+app.delete('/api/admin/cleanup-old-tests', async (req, res) => {
+  try {
+    const deleted = await firestoreService.deleteTestRunsWithoutUser();
+    res.json({ success: true, deletedCount: deleted });
+  } catch (error) {
+    console.error('Cleanup error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Shareable Reports - Create share link
 app.post('/api/test-runs/:id/share', async (req, res) => {
   try {

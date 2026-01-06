@@ -170,6 +170,45 @@ async function deleteShareLink(shareId) {
   return true;
 }
 
+async function deleteTestRunsWithoutUser() {
+  let deletedCount = 0;
+  if (useFirestore) {
+    try {
+      // Get all test runs without userId
+      const snapshot = await db.collection(COLLECTION).where('userId', '==', null).get();
+      const batch = db.batch();
+      snapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+        deletedCount++;
+      });
+      
+      // Also get ones where userId field doesn't exist
+      const snapshot2 = await db.collection(COLLECTION).get();
+      snapshot2.docs.forEach(doc => {
+        const data = doc.data();
+        if (!data.userId) {
+          batch.delete(doc.ref);
+          deletedCount++;
+        }
+      });
+      
+      await batch.commit();
+      console.log(`Deleted ${deletedCount} old test runs without userId`);
+      return deletedCount;
+    } catch (e) {
+      console.warn('Firestore cleanup failed:', e.message);
+    }
+  }
+  // Memory store cleanup
+  for (const [id, run] of memoryStore) {
+    if (!run.userId) {
+      memoryStore.delete(id);
+      deletedCount++;
+    }
+  }
+  return deletedCount;
+}
+
 module.exports = { 
   saveTestRun, 
   getTestRun, 
@@ -179,5 +218,6 @@ module.exports = {
   createShareLink,
   getShareLink,
   getSharesByTestRun,
-  deleteShareLink
+  deleteShareLink,
+  deleteTestRunsWithoutUser
 };
