@@ -18,6 +18,11 @@ function App() {
   const [suggestLoading, setSuggestLoading] = useState(false);
   const [visualDiff, setVisualDiff] = useState(null);
   const [diffLoading, setDiffLoading] = useState(false);
+  const [perfResults, setPerfResults] = useState(null);
+  const [perfLoading, setPerfLoading] = useState(false);
+  const [recordingSession, setRecordingSession] = useState(null);
+  const [recordingLoading, setRecordingLoading] = useState(false);
+  const [flowName, setFlowName] = useState('');
 
   useEffect(() => {
     fetchTestRuns();
@@ -255,6 +260,143 @@ function App() {
     }
   };
 
+  const runPerformanceAudit = async () => {
+    if (!url) return;
+    setPerfLoading(true);
+    setPerfResults(null);
+    try {
+      const res = await fetch(`${API_URL}/api/performance-audit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      setPerfResults(data);
+    } catch (err) {
+      alert('Performance audit failed: ' + err.message);
+    } finally {
+      setPerfLoading(false);
+    }
+  };
+
+  const getPerfScoreColor = (score) => {
+    if (score >= 90) return 'perf-excellent';
+    if (score >= 50) return 'perf-average';
+    return 'perf-poor';
+  };
+
+  // Flow Recording Functions
+  const startRecording = async () => {
+    if (!url) return;
+    setRecordingLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/recording/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setRecordingSession(data);
+      // Start polling for status
+      pollRecordingStatus(data.sessionId);
+    } catch (err) {
+      alert('Failed to start recording: ' + err.message);
+    } finally {
+      setRecordingLoading(false);
+    }
+  };
+
+  const pollRecordingStatus = async (sessionId) => {
+    const poll = async () => {
+      if (!sessionId) return;
+      try {
+        const res = await fetch(`${API_URL}/api/recording/${sessionId}/status`);
+        const data = await res.json();
+        if (data.error) {
+          setRecordingSession(null);
+          return;
+        }
+        setRecordingSession(data);
+      } catch (err) {
+        console.error('Polling error:', err);
+      }
+    };
+    
+    // Poll every 2 seconds while recording
+    const interval = setInterval(async () => {
+      if (!recordingSession || recordingSession.status !== 'recording') {
+        clearInterval(interval);
+        return;
+      }
+      await poll();
+    }, 2000);
+    
+    // Initial poll
+    await poll();
+  };
+
+  const stopRecording = async () => {
+    if (!recordingSession?.sessionId) return;
+    setRecordingLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/recording/${recordingSession.sessionId}/stop`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flowName: flowName || 'Recorded Flow' })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      setRecordingSession(null);
+      setFlowName('');
+      setCurrentRun(data.testRun);
+      setActiveTab('editor');
+      fetchTestRuns();
+      alert('Recording saved! You can now edit and run the test.');
+    } catch (err) {
+      alert('Failed to stop recording: ' + err.message);
+    } finally {
+      setRecordingLoading(false);
+    }
+  };
+
+  const cancelRecording = async () => {
+    if (!recordingSession?.sessionId) return;
+    try {
+      await fetch(`${API_URL}/api/recording/${recordingSession.sessionId}/cancel`, {
+        method: 'POST'
+      });
+      setRecordingSession(null);
+      setFlowName('');
+    } catch (err) {
+      console.error('Cancel error:', err);
+      setRecordingSession(null);
+    }
+  };
+
+  const getMetricStatus = (metric, value) => {
+    const thresholds = {
+      fcp: { good: 1800, poor: 3000 },
+      lcp: { good: 2500, poor: 4000 },
+      cls: { good: 0.1, poor: 0.25 },
+      ttfb: { good: 600, poor: 1500 }
+    };
+    const t = thresholds[metric];
+    if (!t) return 'neutral';
+    if (value <= t.good) return 'good';
+    if (value <= t.poor) return 'average';
+    return 'poor';
+  };
+
+  const formatBytes = (bytes) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
   const getStatusClass = (status) => {
     if (status === 'pass' || status === 'completed') return 'status-pass';
     if (status === 'fail' || status === 'completed_with_failures') return 'status-fail';
@@ -325,6 +467,18 @@ function App() {
             onClick={() => setActiveTab('suggestions')}
           >
             💡 Suggestions
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'performance' ? 'active' : ''}`}
+            onClick={() => setActiveTab('performance')}
+          >
+            ⚡ Performance
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'recorder' ? 'active' : ''}`}
+            onClick={() => setActiveTab('recorder')}
+          >
+            🎬 Recorder
           </button>
         </div>
         <button className="theme-toggle" onClick={toggleDarkMode}>
@@ -786,6 +940,146 @@ function App() {
         </main>
       )}
 
+      {/* Performance Tab */}
+      {activeTab === 'performance' && (
+        <main className="main-content">
+          <div className="performance-page">
+            <h1>⚡ Performance Insights</h1>
+            <p className="subtitle">Measure Core Web Vitals and get optimization recommendations</p>
+
+            <div className="card">
+              <label className="input-label">Website URL</label>
+              <div className="input-group-large">
+                <input
+                  type="url"
+                  placeholder="https://example.com"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && runPerformanceAudit()}
+                />
+                <button 
+                  className="btn btn-primary btn-large"
+                  onClick={runPerformanceAudit}
+                  disabled={perfLoading || !url}
+                >
+                  {perfLoading ? <><span className="spinner"></span> Analyzing...</> : '📊 Analyze Performance'}
+                </button>
+              </div>
+            </div>
+
+            {perfResults && (
+              <>
+                <div className="perf-score-section">
+                  <div className={`perf-score-circle ${getPerfScoreColor(perfResults.score)}`}>
+                    <span className="perf-score-value">{perfResults.score}</span>
+                  </div>
+                  <div className="perf-score-info">
+                    <h2>Performance Score</h2>
+                    <p>{perfResults.url}</p>
+                    <div className="perf-quick-stats">
+                      <span>📦 {perfResults.metrics.totalSizeFormatted}</span>
+                      <span>🔗 {perfResults.metrics.totalRequests} requests</span>
+                      <span>⏱️ {perfResults.metrics.loadTime}ms load</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="metrics-grid">
+                  <div className={`metric-card ${getMetricStatus('fcp', perfResults.metrics.fcp)}`}>
+                    <div className="metric-label">First Contentful Paint</div>
+                    <div className="metric-value">{perfResults.metrics.fcp}ms</div>
+                    <div className="metric-target">Target: &lt;1.8s</div>
+                  </div>
+                  <div className={`metric-card ${getMetricStatus('lcp', perfResults.metrics.lcp)}`}>
+                    <div className="metric-label">Largest Contentful Paint</div>
+                    <div className="metric-value">{perfResults.metrics.lcp}ms</div>
+                    <div className="metric-target">Target: &lt;2.5s</div>
+                  </div>
+                  <div className={`metric-card ${getMetricStatus('cls', perfResults.metrics.cls)}`}>
+                    <div className="metric-label">Cumulative Layout Shift</div>
+                    <div className="metric-value">{perfResults.metrics.cls}</div>
+                    <div className="metric-target">Target: &lt;0.1</div>
+                  </div>
+                  <div className={`metric-card ${getMetricStatus('ttfb', perfResults.metrics.ttfb)}`}>
+                    <div className="metric-label">Time to First Byte</div>
+                    <div className="metric-value">{perfResults.metrics.ttfb}ms</div>
+                    <div className="metric-target">Target: &lt;600ms</div>
+                  </div>
+                </div>
+
+                {perfResults.coverage && (
+                  <div className="card">
+                    <h2>📦 Code Coverage</h2>
+                    <div className="coverage-bars">
+                      <div className="coverage-item">
+                        <div className="coverage-label">
+                          <span>JavaScript</span>
+                          <span>{perfResults.coverage.js.usedPercent}% used</span>
+                        </div>
+                        <div className="coverage-bar">
+                          <div 
+                            className="coverage-fill js" 
+                            style={{ width: `${perfResults.coverage.js.usedPercent}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                      <div className="coverage-item">
+                        <div className="coverage-label">
+                          <span>CSS</span>
+                          <span>{perfResults.coverage.css.usedPercent}% used</span>
+                        </div>
+                        <div className="coverage-bar">
+                          <div 
+                            className="coverage-fill css" 
+                            style={{ width: `${perfResults.coverage.css.usedPercent}%` }}
+                          ></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {perfResults.recommendations?.length > 0 && (
+                  <div className="card">
+                    <h2>💡 Recommendations</h2>
+                    <div className="perf-recommendations">
+                      {perfResults.recommendations.map((rec, idx) => (
+                        <div key={idx} className={`perf-rec ${rec.type}`}>
+                          <div className="rec-header">
+                            <span className={`rec-type ${rec.type}`}>
+                              {rec.type === 'critical' ? '🔴' : rec.type === 'warning' ? '🟡' : '🟢'} {rec.type}
+                            </span>
+                            <span className={`rec-impact ${rec.impact}`}>{rec.impact} impact</span>
+                          </div>
+                          <h3>{rec.title}</h3>
+                          <p>{rec.description}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {perfResults.resources && Object.keys(perfResults.resources).length > 0 && (
+                  <div className="card">
+                    <h2>📊 Resource Breakdown</h2>
+                    <div className="resource-table">
+                      {Object.entries(perfResults.resources).map(([type, data]) => (
+                        <div key={type} className="resource-row">
+                          <span className="resource-type">{type}</span>
+                          <span className="resource-count">{data.count} files</span>
+                          <span className="resource-size">{formatBytes(data.size)}</span>
+                          <span className="resource-time">{data.avgDuration}ms avg</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </main>
+      )}
+
       {/* Accessibility Tab */}
       {activeTab === 'accessibility' && (
         <main className="main-content">
@@ -875,6 +1169,107 @@ function App() {
                 )}
               </>
             )}
+          </div>
+        </main>
+      )}
+
+      {/* Recorder Tab */}
+      {activeTab === 'recorder' && (
+        <main className="main-content">
+          <div className="recorder-page">
+            <h1>🎬 Flow Recorder</h1>
+            <p className="subtitle">Record your interactions and replay them as automated tests</p>
+
+            {!recordingSession ? (
+              <div className="card">
+                <label className="input-label">Start URL</label>
+                <div className="input-group-large">
+                  <input
+                    type="url"
+                    placeholder="https://example.com/login"
+                    value={url}
+                    onChange={(e) => setUrl(e.target.value)}
+                    onKeyPress={(e) => e.key === 'Enter' && startRecording()}
+                  />
+                  <button 
+                    className="btn btn-primary btn-large"
+                    onClick={startRecording}
+                    disabled={recordingLoading || !url}
+                  >
+                    {recordingLoading ? <><span className="spinner"></span> Starting...</> : '⏺️ Start Recording'}
+                  </button>
+                </div>
+                <p className="input-hint">A browser window will open. Interact with the page, then come back here to stop recording.</p>
+              </div>
+            ) : (
+              <div className="recording-active">
+                <div className="recording-status-card">
+                  <div className="recording-indicator">
+                    <span className="recording-dot"></span>
+                    <span>Recording in progress...</span>
+                  </div>
+                  <div className="recording-url">{recordingSession.url}</div>
+                  <div className="recording-stats">
+                    <span className="stat">📝 {recordingSession.stepCount || 0} steps recorded</span>
+                    <span className="stat">⏱️ Started {new Date(recordingSession.startedAt).toLocaleTimeString()}</span>
+                  </div>
+                </div>
+
+                <div className="card">
+                  <label className="input-label">Flow Name</label>
+                  <input
+                    type="text"
+                    placeholder="e.g., Login Flow, Checkout Process"
+                    value={flowName}
+                    onChange={(e) => setFlowName(e.target.value)}
+                    className="flow-name-input"
+                  />
+                </div>
+
+                {recordingSession.steps?.length > 0 && (
+                  <div className="card">
+                    <h3>Recorded Steps</h3>
+                    <div className="recorded-steps-list">
+                      {recordingSession.steps.map((step, idx) => (
+                        <div key={idx} className="recorded-step">
+                          <span className="step-num">{idx + 1}</span>
+                          <span className={`step-action-badge ${step.action}`}>{step.action}</span>
+                          <span className="step-selector">{step.selector}</span>
+                          {step.value && <span className="step-value">"{step.value}"</span>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="recording-actions">
+                  <button 
+                    className="btn btn-success btn-large"
+                    onClick={stopRecording}
+                    disabled={recordingLoading}
+                  >
+                    {recordingLoading ? <><span className="spinner"></span> Saving...</> : '⏹️ Stop & Save'}
+                  </button>
+                  <button 
+                    className="btn btn-outline"
+                    onClick={cancelRecording}
+                    disabled={recordingLoading}
+                  >
+                    ❌ Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+
+            <div className="recorder-tips">
+              <h3>💡 Tips for Recording</h3>
+              <ul>
+                <li>Click through your user flow naturally - clicks, typing, and form submissions are captured</li>
+                <li>Wait for pages to load before interacting with elements</li>
+                <li>Use unique identifiers (IDs, data-testid) on elements for more reliable playback</li>
+                <li>After saving, you can edit the recorded steps in the Editor tab</li>
+              </ul>
+            </div>
           </div>
         </main>
       )}

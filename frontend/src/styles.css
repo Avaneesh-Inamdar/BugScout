@@ -1213,3 +1213,417 @@ h1 {
     height: 200px;
   }
 }
+
+
+/* Performance Insights */
+.performance-page { max-width: 900px; margin: 0 auto; }
+
+.perf-score-section {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 32px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+}
+
+.perf-score-circle {
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.perf-score-circle.perf-excellent { background: linear-gradient(135deg, #10b981, #059669); }
+.perf-score-circle.perf-average { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.perf-score-circle.perf-poor { background: linear-gradient(135deg, #ef4444, #dc2626); }
+
+.perf-score-value {
+  font-size: 42px;
+  font-weight: 700;
+  color: white;
+}
+
+.perf-score-info h2 { margin-bottom: 8px; }
+.perf-score-info p { color: var(--text-secondary); font-size: 14px; margin-bottom: 12px; }
+
+.perf-quick-stats {
+  display: flex;
+  gap: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.metric-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+  border-top: 4px solid;
+}
+
+.metric-card.good { border-top-color: var(--success); }
+.metric-card.average { border-top-color: var(--warning); }
+.metric-card.poor { border-top-color: var(--danger); }
+.metric-card.neutral { border-top-color: var(--border); }
+
+.metric-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.metric-card.good .metric-value { color: var(--success); }
+.metric-card.average .metric-value { color: var(--warning); }
+.metric-card.poor .metric-value { color: var(--danger); }
+
+.metric-target {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+/* Coverage Bars */
+.coverage-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.coverage-item { }
+
+.coverage-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.coverage-bar {
+  height: 12px;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.coverage-fill {
+  height: 100%;
+  border-radius: 6px;
+  transition: width 0.5s ease;
+}
+
+.coverage-fill.js { background: linear-gradient(90deg, #f59e0b, #eab308); }
+.coverage-fill.css { background: linear-gradient(90deg, #3b82f6, #6366f1); }
+
+/* Performance Recommendations */
+.perf-recommendations {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.perf-rec {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid;
+}
+
+.perf-rec.critical { background: rgba(239, 68, 68, 0.08); border-color: var(--danger); }
+.perf-rec.warning { background: rgba(245, 158, 11, 0.08); border-color: var(--warning); }
+.perf-rec.suggestion { background: rgba(16, 185, 129, 0.08); border-color: var(--success); }
+
+.rec-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+
+.rec-type {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.rec-impact {
+  font-size: 10px;
+  padding: 2px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 10px;
+  color: var(--text-secondary);
+}
+
+.perf-rec h3 {
+  font-size: 14px;
+  margin: 0 0 6px 0;
+}
+
+.perf-rec p {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Resource Table */
+.resource-table {
+  margin-top: 16px;
+}
+
+.resource-row {
+  display: grid;
+  grid-template-columns: 1fr 100px 100px 100px;
+  gap: 12px;
+  padding: 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.resource-row:last-child { border-bottom: none; }
+
+.resource-type {
+  font-weight: 500;
+  text-transform: capitalize;
+}
+
+.resource-count, .resource-size, .resource-time {
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+@media (max-width: 768px) {
+  .perf-score-section {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .perf-quick-stats {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+  
+  .resource-row {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+
+/* Flow Recorder */
+.recorder-page { max-width: 800px; margin: 0 auto; }
+
+.input-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 12px;
+}
+
+.recording-active {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.recording-status-card {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(249, 115, 22, 0.1));
+  border: 2px solid rgba(239, 68, 68, 0.3);
+  border-radius: var(--radius);
+  padding: 24px;
+  text-align: center;
+}
+
+.recording-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #dc2626;
+  margin-bottom: 12px;
+}
+
+.recording-dot {
+  width: 12px;
+  height: 12px;
+  background: #dc2626;
+  border-radius: 50%;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(1.2); }
+}
+
+.recording-url {
+  font-size: 14px;
+  color: var(--text-secondary);
+  word-break: break-all;
+  margin-bottom: 16px;
+}
+
+.recording-stats {
+  display: flex;
+  justify-content: center;
+  gap: 24px;
+}
+
+.recording-stats .stat {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.flow-name-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 14px;
+}
+
+.flow-name-input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.recorded-steps-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.recorded-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+}
+
+.step-num {
+  width: 24px;
+  height: 24px;
+  background: var(--accent);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.step-action-badge {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.step-action-badge.click { background: rgba(99, 102, 241, 0.2); color: var(--accent); }
+.step-action-badge.type { background: rgba(16, 185, 129, 0.2); color: var(--success); }
+.step-action-badge.select { background: rgba(245, 158, 11, 0.2); color: var(--warning); }
+.step-action-badge.submit { background: rgba(239, 68, 68, 0.2); color: var(--danger); }
+
+.step-selector {
+  flex: 1;
+  color: var(--text-secondary);
+  font-family: monospace;
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-value {
+  color: var(--success);
+  font-size: 12px;
+  max-width: 150px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.recording-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.recorder-tips {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-top: 24px;
+}
+
+.recorder-tips h3 {
+  font-size: 14px;
+  margin-bottom: 12px;
+}
+
+.recorder-tips ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.recorder-tips li {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+.recorder-tips li:last-child {
+  margin-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .recording-stats {
+    flex-direction: column;
+    gap: 8px;
+  }
+  
+  .recording-actions {
+    flex-direction: column;
+  }
+  
+  .recorded-step {
+    flex-wrap: wrap;
+  }
+  
+  .step-selector {
+    width: 100%;
+    order: 3;
+  }
+}

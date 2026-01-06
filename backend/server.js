@@ -11,6 +11,8 @@ const firestoreService = require('./services/firestoreService');
 const accessibilityAuditor = require('./services/accessibilityAuditor');
 const testSuggester = require('./services/testSuggester');
 const visualDiff = require('./services/visualDiff');
+const performanceAnalyzer = require('./services/performanceAnalyzer');
+const flowRecorder = require('./services/flowRecorder');
 
 const app = express();
 app.use(cors());
@@ -200,6 +202,85 @@ app.post('/api/test-runs/:id/visual-diff', async (req, res) => {
     console.error('Visual diff error:', error);
     res.status(500).json({ error: error.message });
   }
+});
+
+// Performance Analysis
+app.post('/api/performance-audit', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    console.log(`[Perf] Analyzing: ${url}`);
+    const results = await performanceAnalyzer.analyze(url);
+    res.json(results);
+  } catch (error) {
+    console.error('Performance audit error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Flow Recording - Start recording session
+app.post('/api/recording/start', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    console.log(`[Recorder] Starting recording for: ${url}`);
+    const session = await flowRecorder.startRecording(url);
+    res.json(session);
+  } catch (error) {
+    console.error('Start recording error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Flow Recording - Get recording status
+app.get('/api/recording/:sessionId/status', async (req, res) => {
+  try {
+    const status = await flowRecorder.getRecordingStatus(req.params.sessionId);
+    res.json(status);
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+// Flow Recording - Stop and save recording
+app.post('/api/recording/:sessionId/stop', async (req, res) => {
+  try {
+    const { flowName } = req.body;
+    console.log(`[Recorder] Stopping recording: ${req.params.sessionId}`);
+    const flow = await flowRecorder.stopRecording(req.params.sessionId, flowName);
+    
+    // Convert to test run and save
+    const runId = uuidv4();
+    const testRun = flowRecorder.flowToTestRun(flow, runId);
+    await firestoreService.saveTestRun(testRun);
+    
+    res.json({ flow, testRun });
+  } catch (error) {
+    console.error('Stop recording error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Flow Recording - Cancel recording
+app.post('/api/recording/:sessionId/cancel', async (req, res) => {
+  try {
+    const result = await flowRecorder.cancelRecording(req.params.sessionId);
+    res.json(result);
+  } catch (error) {
+    res.status(404).json({ error: error.message });
+  }
+});
+
+// Flow Recording - List active sessions
+app.get('/api/recording/sessions', (req, res) => {
+  const sessions = flowRecorder.listActiveSessions();
+  res.json(sessions);
 });
 
 const PORT = process.env.PORT || 3001;
