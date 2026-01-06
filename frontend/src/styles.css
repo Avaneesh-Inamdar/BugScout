@@ -743,3 +743,199 @@ h1 {
   color: var(--text-primary);
   margin-bottom: 4px;
 }
+
+
+/* Accessibility Audit */
+.accessibility-page { max-width: 900px; margin: 0 auto; }
+
+.a11y-score-card {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 32px;
+  margin-bottom: 24px;
+  border: 1px solid var(--border);
+}
+
+.score-circle {
+  width: 140px;
+  height: 140px;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.score-circle.score-excellent { background: linear-gradient(135deg, #10b981, #059669); }
+.score-circle.score-good { background: linear-gradient(135deg, #3b82f6, #2563eb); }
+.score-circle.score-fair { background: linear-gradient(135deg, #f59e0b, #d97706); }
+.score-circle.score-poor { background: linear-gradient(135deg, #ef4444, #dc2626); }
+
+.score-value {
+  font-size: 48px;
+  font-weight: 700;
+  color: white;
+  line-height: 1;
+}
+
+.score-label {
+  font-size: 16px;
+  color: rgba(255,255,255,0.8);
+}
+
+.score-details h2 {
+  font-size: 24px;
+  margin-bottom: 8px;
+}
+
+.score-details p {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin-bottom: 16px;
+  word-break: break-all;
+}
+
+.issue-summary {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.issue-count {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.issue-count.critical { background: rgba(239, 68, 68, 0.15); color: #dc2626; }
+.issue-count.high { background: rgba(249, 115, 22, 0.15); color: #ea580c; }
+.issue-count.medium { background: rgba(245, 158, 11, 0.15); color: #d97706; }
+.issue-count.low { background: rgba(34, 197, 94, 0.15); color: #16a34a; }
+
+.a11y-issues {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.a11y-issue {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  border-left: 4px solid;
+}
+
+.a11y-issue.critical { background: rgba(239, 68, 68, 0.08); border-color: #dc2626; }
+.a11y-issue.high { background: rgba(249, 115, 22, 0.08); border-color: #ea580c; }
+.a11y-issue.medium { background: rgba(245, 158, 11, 0.08); border-color: #d97706; }
+.a11y-issue.low { background: rgba(34, 197, 94, 0.08); border-color: #16a34a; }
+
+.issue-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+  flex-wrap: wrap;
+}
+
+.issue-header h3 {
+  font-size: 15px;
+  font-weight: 600;
+  margin: 0;
+}
+
+.severity-tag {
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.severity-tag.critical { background: #dc2626; color: white; }
+.severity-tag.high { background: #ea580c; color: white; }
+.severity-tag.medium { background: #d97706; color: white; }
+.severity-tag.low { background: #16a34a; color: white; }
+
+.wcag-tag {
+  padding: 2px 8px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.wcag-tag.small { font-size: 10px; }
+
+.issue-description {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 0 0 8px 0;
+}
+
+.issue-message {
+  font-size: 14px;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.issue-elements {
+  margin-top: 12px;
+  font-size: 13px;
+}
+
+.issue-elements strong {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--text-secondary);
+}
+
+.issue-elements code {
+  display: block;
+  padding: 8px 12px;
+  background: var(--bg-tertiary);
+  border-radius: 4px;
+  font-size: 12px;
+  margin-bottom: 6px;
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.passed-checks {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.passed-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: rgba(16, 185, 129, 0.08);
+  border-radius: 6px;
+  font-size: 14px;
+}
+
+.check-icon {
+  color: var(--success);
+  font-weight: bold;
+}
+
+@media (max-width: 768px) {
+  .a11y-score-card {
+    flex-direction: column;
+    text-align: center;
+  }
+  
+  .issue-summary {
+    justify-content: center;
+  }
+}

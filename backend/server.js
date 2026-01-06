@@ -8,6 +8,7 @@ const pageInspector = require('./services/pageInspector');
 const testGenerator = require('./services/testGenerator');
 const testExecutor = require('./services/testExecutor');
 const firestoreService = require('./services/firestoreService');
+const accessibilityAuditor = require('./services/accessibilityAuditor');
 
 const app = express();
 app.use(cors());
@@ -137,6 +138,23 @@ app.delete('/api/test-runs/:id', async (req, res) => {
     await firestoreService.deleteTestRun(req.params.id);
     res.json({ success: true });
   } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Accessibility Audit
+app.post('/api/accessibility-audit', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    console.log(`[A11y] Auditing: ${url}`);
+    const results = await accessibilityAuditor.audit(url);
+    res.json(results);
+  } catch (error) {
+    console.error('Accessibility audit error:', error);
     res.status(500).json({ error: error.message });
   }
 });

@@ -12,6 +12,8 @@ function App() {
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
   const [activeTab, setActiveTab] = useState('dashboard');
   const [testPreset, setTestPreset] = useState('auto');
+  const [a11yResults, setA11yResults] = useState(null);
+  const [a11yLoading, setA11yLoading] = useState(false);
 
   useEffect(() => {
     fetchTestRuns();
@@ -171,6 +173,32 @@ function App() {
     a.click();
   };
 
+  const runAccessibilityAudit = async () => {
+    if (!url) return;
+    setA11yLoading(true);
+    setA11yResults(null);
+    try {
+      const res = await fetch(`${API_URL}/api/accessibility-audit`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      setA11yResults(data);
+    } catch (err) {
+      alert('Accessibility audit failed: ' + err.message);
+    } finally {
+      setA11yLoading(false);
+    }
+  };
+
+  const getScoreColor = (score) => {
+    if (score >= 90) return 'score-excellent';
+    if (score >= 70) return 'score-good';
+    if (score >= 50) return 'score-fair';
+    return 'score-poor';
+  };
+
   const getStatusClass = (status) => {
     if (status === 'pass' || status === 'completed') return 'status-pass';
     if (status === 'fail' || status === 'completed_with_failures') return 'status-fail';
@@ -229,6 +257,12 @@ function App() {
             onClick={() => setActiveTab('history')}
           >
             📜 History
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'accessibility' ? 'active' : ''}`}
+            onClick={() => setActiveTab('accessibility')}
+          >
+            ♿ Accessibility
           </button>
         </div>
         <button className="theme-toggle" onClick={toggleDarkMode}>
@@ -557,6 +591,99 @@ function App() {
           </div>
         )}
       </main>
+
+      {/* Accessibility Tab */}
+      {activeTab === 'accessibility' && (
+        <main className="main-content">
+          <div className="accessibility-page">
+            <h1>♿ Accessibility Audit</h1>
+            <p className="subtitle">Check your website for WCAG 2.1 compliance issues</p>
+
+            <div className="card">
+              <label className="input-label">Website URL</label>
+              <div className="input-group-large">
+                <input
+                  type="url"
+                  placeholder="https://example.com"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && runAccessibilityAudit()}
+                />
+                <button 
+                  className="btn btn-primary btn-large"
+                  onClick={runAccessibilityAudit}
+                  disabled={a11yLoading || !url}
+                >
+                  {a11yLoading ? <><span className="spinner"></span> Scanning...</> : '🔍 Run Audit'}
+                </button>
+              </div>
+            </div>
+
+            {a11yResults && (
+              <>
+                <div className="a11y-score-card">
+                  <div className={`score-circle ${getScoreColor(a11yResults.score)}`}>
+                    <span className="score-value">{a11yResults.score}</span>
+                    <span className="score-label">/ 100</span>
+                  </div>
+                  <div className="score-details">
+                    <h2>Accessibility Score</h2>
+                    <p>{a11yResults.url}</p>
+                    <div className="issue-summary">
+                      <span className="issue-count critical">{a11yResults.summary.critical} Critical</span>
+                      <span className="issue-count high">{a11yResults.summary.high} High</span>
+                      <span className="issue-count medium">{a11yResults.summary.medium} Medium</span>
+                      <span className="issue-count low">{a11yResults.summary.low} Low</span>
+                    </div>
+                  </div>
+                </div>
+
+                {a11yResults.issues.length > 0 && (
+                  <div className="card">
+                    <h2>🚨 Issues Found ({a11yResults.issues.length})</h2>
+                    <div className="a11y-issues">
+                      {a11yResults.issues.map((issue, idx) => (
+                        <div key={idx} className={`a11y-issue ${issue.severity}`}>
+                          <div className="issue-header">
+                            <span className={`severity-tag ${issue.severity}`}>{issue.severity}</span>
+                            <span className="wcag-tag">WCAG {issue.wcag}</span>
+                            <h3>{issue.name}</h3>
+                          </div>
+                          <p className="issue-description">{issue.description}</p>
+                          <p className="issue-message">{issue.message}</p>
+                          {issue.elements?.length > 0 && (
+                            <div className="issue-elements">
+                              <strong>Affected elements:</strong>
+                              {issue.elements.map((el, i) => (
+                                <code key={i}>{el.html || el.text}</code>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {a11yResults.passed.length > 0 && (
+                  <div className="card">
+                    <h2>✅ Passed Checks ({a11yResults.passed.length})</h2>
+                    <div className="passed-checks">
+                      {a11yResults.passed.map((check, idx) => (
+                        <div key={idx} className="passed-item">
+                          <span className="check-icon">✓</span>
+                          <span>{check.name}</span>
+                          <span className="wcag-tag small">WCAG {check.wcag}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </main>
+      )}
 
       {/* Screenshot Modal */}
       {modalImage && (
