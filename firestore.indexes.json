@@ -1,0 +1,12 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "testRuns",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}
