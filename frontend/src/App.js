@@ -544,7 +544,7 @@ function App() {
         <>
           <nav className="navbar">
             <div className="nav-brand" onClick={() => { window.location.href = '/'; }} style={{ cursor: 'pointer' }}>
-              <span className="logo">🔬</span>
+              <img src="/logo.png" alt="BugScout" className="logo-img" />
               <span className="brand-text">BugScout</span>
             </div>
             <span className="shared-badge">📤 Shared Report</span>
@@ -672,7 +672,7 @@ function App() {
         <>
       <nav className="navbar">
         <div className="nav-brand" onClick={() => setActiveTab('dashboard')} style={{ cursor: 'pointer' }}>
-          <span className="logo">🔬</span>
+          <img src="/logo.png" alt="BugScout" className="logo-img" />
           <span className="brand-text">BugScout</span>
         </div>
         <div className="nav-tabs">
