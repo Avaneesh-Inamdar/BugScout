@@ -670,14 +670,14 @@ function App() {
           <span className="brand-text">BugScout</span>
         </div>
         <div className="nav-tabs">
-          <button 
-            className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
-            onClick={() => setActiveTab('dashboard')}
-          >
-            📊 Dashboard
-          </button>
           {user && (
             <>
+              <button 
+                className={`nav-tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+                onClick={() => setActiveTab('dashboard')}
+              >
+                📊 Dashboard
+              </button>
               <button 
                 className={`nav-tab ${activeTab === 'new' ? 'active' : ''}`}
                 onClick={() => setActiveTab('new')}
