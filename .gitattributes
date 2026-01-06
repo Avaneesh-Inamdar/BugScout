@@ -1,0 +1,5 @@
+# Exclude from language stats
+Dockerfile linguist-detectable=false
+*.rules linguist-detectable=false
+*.json linguist-detectable=false
+*.md linguist-detectable=false
