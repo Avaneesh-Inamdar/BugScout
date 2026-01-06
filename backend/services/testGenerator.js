@@ -2,11 +2,15 @@ const Groq = require('groq-sdk');
 
 const GROQ_PROMPT = `You are an instruction-following system.
 Given UI element metadata and page text, generate a QA test plan.
+
+IMPORTANT: Use the EXACT "selector" values from the input elements as targets, NOT the "id" values.
+The "id" values (e0, e1, etc.) are internal references - you must use the actual CSS selectors.
+
 Return ONLY valid JSON with this structure:
 {
   "page_type": "login|signup|checkout|other",
   "elements": [
-    { "id": "e1", "role": "input", "subtype": "email", "selector_hint": "input[type=email]" }
+    { "id": "e1", "role": "input", "subtype": "email", "selector": "input[type=email]" }
   ],
   "test_plan": [
     {
@@ -14,8 +18,8 @@ Return ONLY valid JSON with this structure:
       "type": "negative",
       "name": "Test name here",
       "steps": [
-        { "action": "type", "target": "e1", "value": "" },
-        { "action": "click", "target": "submit" }
+        { "action": "type", "target": "input[type=email]", "value": "" },
+        { "action": "click", "target": "button:has-text(\\"Submit\\")" }
       ],
       "expected": "Validation error shown"
     }
@@ -26,7 +30,8 @@ Return ONLY valid JSON with this structure:
 Rules:
 - Always generate 3 test cases
 - At least 2 must be negative
-- Keep selectors simple
+- CRITICAL: Use the actual CSS selectors from the input elements, not internal IDs like e0, e1, e2
+- If an element has selector "input[type=password]", use that exact string as the target
 - No explanations, only JSON
 
 Input:
@@ -52,6 +57,13 @@ async function generate(pageData) {
 async function generateWithAI(pageData) {
   const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
   
+  // Build a map of internal IDs to real selectors for post-processing
+  const idToSelector = {};
+  pageData.elements.forEach(e => {
+    idToSelector[e.id] = e.selector;
+    if (e.role) idToSelector[e.role] = e.selector;
+  });
+  
   const inputData = {
     page_type: pageData.pageType,
     visible_text: pageData.visibleText.substring(0, 1000),
@@ -60,7 +72,7 @@ async function generateWithAI(pageData) {
       role: e.role,
       type: e.type,
       placeholder: e.placeholder,
-      selector: e.selector
+      selector: e.selector  // Emphasize the real selector
     }))
   };
   
@@ -84,12 +96,27 @@ async function generateWithAI(pageData) {
     throw new Error('No JSON found in AI response');
   }
   
-  return JSON.parse(jsonMatch[0]);
+  const result = JSON.parse(jsonMatch[0]);
+  
+  // Post-process: Replace any internal IDs (e0, e1, etc.) with real selectors
+  if (result.test_plan) {
+    result.test_plan = result.test_plan.map(test => ({
+      ...test,
+      steps: test.steps.map(step => ({
+        ...step,
+        // If target is an internal ID, replace with real selector
+        target: idToSelector[step.target] || step.target
+      }))
+    }));
+  }
+  
+  return result;
 }
 
 function generateWithRules(pageData) {
   const { pageType, elements } = pageData;
   
+  // Build lookup maps using real selectors
   const elementMap = {};
   elements.forEach(e => {
     elementMap[e.id] = e;
@@ -101,44 +128,111 @@ function generateWithRules(pageData) {
   if (pageType === 'login' || pageType === 'signup') {
     const emailEl = elements.find(e => e.role === 'email_input' || e.type === 'email');
     const passEl = elements.find(e => e.role === 'password_input' || e.type === 'password');
+    const phoneEl = elements.find(e => e.type === 'tel' || e.placeholder?.toLowerCase().includes('phone') || e.placeholder?.toLowerCase().includes('mobile'));
     const submitEl = elements.find(e => e.role === 'submit_button' || e.role === 'button');
     
-    if (emailEl && passEl && submitEl) {
-      // Test 1: Empty submission (negative)
+    // Handle phone-based login (like meesho)
+    if (phoneEl && !emailEl && submitEl) {
+      testPlan.push({
+        id: 't1',
+        type: 'negative',
+        name: 'Empty phone submission',
+        steps: [
+          { action: 'click', target: submitEl.selector }
+        ],
+        expected: 'Validation error shown for required phone number'
+      });
+      
+      testPlan.push({
+        id: 't2',
+        type: 'negative',
+        name: 'Invalid phone number',
+        steps: [
+          { action: 'type', target: phoneEl.selector, value: '123' },
+          { action: 'click', target: submitEl.selector }
+        ],
+        expected: 'Phone validation error shown'
+      });
+      
+      testPlan.push({
+        id: 't3',
+        type: 'positive',
+        name: 'Valid phone number submission',
+        steps: [
+          { action: 'type', target: phoneEl.selector, value: '9876543210' },
+          { action: 'click', target: submitEl.selector }
+        ],
+        expected: 'OTP screen or next step shown'
+      });
+    }
+    // Handle email/password login
+    else if (emailEl && passEl && submitEl) {
       testPlan.push({
         id: 't1',
         type: 'negative',
         name: 'Empty form submission',
         steps: [
-          { action: 'click', target: submitEl.id }
+          { action: 'click', target: submitEl.selector }
         ],
         expected: 'Validation error shown for required fields'
       });
       
-      // Test 2: Invalid email (negative)
       testPlan.push({
         id: 't2',
         type: 'negative',
         name: 'Invalid email format',
         steps: [
-          { action: 'type', target: emailEl.id, value: 'invalid-email' },
-          { action: 'type', target: passEl.id, value: 'password123' },
-          { action: 'click', target: submitEl.id }
+          { action: 'type', target: emailEl.selector, value: 'invalid-email' },
+          { action: 'type', target: passEl.selector, value: 'password123' },
+          { action: 'click', target: submitEl.selector }
         ],
         expected: 'Email validation error shown'
       });
       
-      // Test 3: Valid credentials (positive)
       testPlan.push({
         id: 't3',
         type: 'positive',
         name: 'Valid credentials submission',
         steps: [
-          { action: 'type', target: emailEl.id, value: 'test@example.com' },
-          { action: 'type', target: passEl.id, value: 'ValidPass123!' },
-          { action: 'click', target: submitEl.id }
+          { action: 'type', target: emailEl.selector, value: 'test@example.com' },
+          { action: 'type', target: passEl.selector, value: 'ValidPass123!' },
+          { action: 'click', target: submitEl.selector }
         ],
         expected: 'Form submits successfully or redirects'
+      });
+    }
+    // Handle password-only (like some login flows)
+    else if (passEl && submitEl) {
+      testPlan.push({
+        id: 't1',
+        type: 'negative',
+        name: 'Empty password submission',
+        steps: [
+          { action: 'click', target: submitEl.selector }
+        ],
+        expected: 'Validation error shown'
+      });
+      
+      testPlan.push({
+        id: 't2',
+        type: 'negative',
+        name: 'Short password',
+        steps: [
+          { action: 'type', target: passEl.selector, value: '123' },
+          { action: 'click', target: submitEl.selector }
+        ],
+        expected: 'Password validation error shown'
+      });
+      
+      testPlan.push({
+        id: 't3',
+        type: 'positive',
+        name: 'Valid password submission',
+        steps: [
+          { action: 'type', target: passEl.selector, value: 'ValidPass123!' },
+          { action: 'click', target: submitEl.selector }
+        ],
+        expected: 'Form submits successfully'
       });
     }
   } else if (pageType === 'search') {
@@ -151,7 +245,7 @@ function generateWithRules(pageData) {
         type: 'negative',
         name: 'Empty search',
         steps: [
-          { action: 'click', target: submitEl?.id || 'button' }
+          { action: 'click', target: submitEl?.selector || 'button' }
         ],
         expected: 'No results or validation message'
       });
@@ -161,8 +255,8 @@ function generateWithRules(pageData) {
         type: 'negative',
         name: 'Special characters search',
         steps: [
-          { action: 'type', target: searchInput.id, value: '!@#$%^&*()' },
-          { action: 'click', target: submitEl?.id || 'button' }
+          { action: 'type', target: searchInput.selector, value: '!@#$%^&*()' },
+          { action: 'click', target: submitEl?.selector || 'button' }
         ],
         expected: 'Handles special characters gracefully'
       });
@@ -172,15 +266,15 @@ function generateWithRules(pageData) {
         type: 'positive',
         name: 'Valid search query',
         steps: [
-          { action: 'type', target: searchInput.id, value: 'test query' },
-          { action: 'click', target: submitEl?.id || 'button' }
+          { action: 'type', target: searchInput.selector, value: 'test query' },
+          { action: 'click', target: submitEl?.selector || 'button' }
         ],
         expected: 'Search results displayed'
       });
     }
   }
   
-  // Generic fallback tests
+  // Generic fallback tests - use real selectors
   if (testPlan.length === 0) {
     const inputs = elements.filter(e => e.tagName === 'input' || e.tagName === 'textarea');
     const buttons = elements.filter(e => e.role === 'button' || e.role === 'submit_button');
@@ -191,7 +285,7 @@ function generateWithRules(pageData) {
         type: 'negative',
         name: 'Empty form submission',
         steps: [
-          { action: 'click', target: buttons[0].id }
+          { action: 'click', target: buttons[0].selector }
         ],
         expected: 'Validation or error handling'
       });
@@ -201,8 +295,8 @@ function generateWithRules(pageData) {
         type: 'negative',
         name: 'Invalid input data',
         steps: [
-          { action: 'type', target: inputs[0].id, value: '!@#$%' },
-          { action: 'click', target: buttons[0].id }
+          { action: 'type', target: inputs[0].selector, value: '!@#$%' },
+          { action: 'click', target: buttons[0].selector }
         ],
         expected: 'Handles invalid input gracefully'
       });
@@ -212,8 +306,8 @@ function generateWithRules(pageData) {
         type: 'positive',
         name: 'Valid form interaction',
         steps: [
-          { action: 'type', target: inputs[0].id, value: 'test value' },
-          { action: 'click', target: buttons[0].id }
+          { action: 'type', target: inputs[0].selector, value: 'test value' },
+          { action: 'click', target: buttons[0].selector }
         ],
         expected: 'Form processes input correctly'
       });

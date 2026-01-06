@@ -127,10 +127,12 @@ async function inspect(url) {
         if (tag === 'input') {
           if (type === 'email') return 'email_input';
           if (type === 'password') return 'password_input';
+          if (type === 'tel') return 'phone_input';
           if (type === 'text') return 'text_input';
           if (type === 'submit') return 'submit_button';
           if (type === 'checkbox') return 'checkbox';
           if (type === 'radio') return 'radio';
+          if (type === 'number') return 'number_input';
           return 'input';
         }
         if (tag === 'button') return 'button';
