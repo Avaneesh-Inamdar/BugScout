@@ -29,6 +29,38 @@ function App() {
   const [sharedReportLoading, setSharedReportLoading] = useState(false);
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
+  const [openFaq, setOpenFaq] = useState(null);
+
+  const toggleFaq = (index) => {
+    setOpenFaq(openFaq === index ? null : index);
+  };
+
+  const faqData = [
+    {
+      question: "What types of websites can BugScout test?",
+      answer: "BugScout works with any publicly accessible website. It's optimized for testing login forms, signup flows, search functionality, and checkout processes. However, some websites with aggressive bot protection may block automated testing."
+    },
+    {
+      question: "How does the AI generate test cases?",
+      answer: "BugScout analyzes your page structure, identifies interactive elements like forms and buttons, and uses Llama 3.1 to generate relevant test scenarios including negative tests, edge cases, and validation checks based on the page type."
+    },
+    {
+      question: "Can I edit the auto-generated tests?",
+      answer: "Yes! All generated tests are fully editable. You can modify test steps, change selectors, add new tests, or remove unnecessary ones before execution. You can also record your own test flows using the Flow Recorder."
+    },
+    {
+      question: "What do the accessibility scores mean?",
+      answer: "Accessibility scores are based on WCAG 2.1 guidelines. Issues are categorized as Critical (blocks users), Serious (significant barriers), Moderate (causes frustration), and Minor (best practice improvements). A score of 90+ indicates good accessibility."
+    },
+    {
+      question: "How are performance metrics calculated?",
+      answer: "We measure Core Web Vitals including First Contentful Paint (FCP), Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and Time to First Byte (TTFB). These metrics follow Google's standards for measuring user experience."
+    },
+    {
+      question: "Can I share test results with my team?",
+      answer: "Yes! Each test run can generate a shareable link that anyone can view without signing in. You can set expiration times for shared links and revoke access anytime. Great for sharing bug reports with developers."
+    }
+  ];
 
   useEffect(() => {
     // Listen for auth state changes
@@ -954,31 +986,18 @@ function App() {
 
                 <div className="landing-faq">
                   <h2>Frequently Asked Questions</h2>
-                  <div className="faq-grid">
-                    <div className="faq-item">
-                      <h3>What types of websites can BugScout test?</h3>
-                      <p>BugScout works with any publicly accessible website. It's optimized for testing login forms, signup flows, search functionality, and checkout processes. However, some websites with aggressive bot protection may block automated testing.</p>
-                    </div>
-                    <div className="faq-item">
-                      <h3>How does the AI generate test cases?</h3>
-                      <p>BugScout analyzes your page structure, identifies interactive elements like forms and buttons, and uses Llama 3.1 to generate relevant test scenarios including negative tests, edge cases, and validation checks based on the page type.</p>
-                    </div>
-                    <div className="faq-item">
-                      <h3>Can I edit the auto-generated tests?</h3>
-                      <p>Yes! All generated tests are fully editable. You can modify test steps, change selectors, add new tests, or remove unnecessary ones before execution. You can also record your own test flows using the Flow Recorder.</p>
-                    </div>
-                    <div className="faq-item">
-                      <h3>What do the accessibility scores mean?</h3>
-                      <p>Accessibility scores are based on WCAG 2.1 guidelines. Issues are categorized as Critical (blocks users), Serious (significant barriers), Moderate (causes frustration), and Minor (best practice improvements). A score of 90+ indicates good accessibility.</p>
-                    </div>
-                    <div className="faq-item">
-                      <h3>How are performance metrics calculated?</h3>
-                      <p>We measure Core Web Vitals including First Contentful Paint (FCP), Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and Time to First Byte (TTFB). These metrics follow Google's standards for measuring user experience.</p>
-                    </div>
-                    <div className="faq-item">
-                      <h3>Can I share test results with my team?</h3>
-                      <p>Yes! Each test run can generate a shareable link that anyone can view without signing in. You can set expiration times for shared links and revoke access anytime. Great for sharing bug reports with developers.</p>
-                    </div>
+                  <div className="faq-accordion">
+                    {faqData.map((faq, index) => (
+                      <div key={index} className={`faq-item ${openFaq === index ? 'open' : ''}`}>
+                        <button className="faq-question" onClick={() => toggleFaq(index)}>
+                          <span>{faq.question}</span>
+                          <span className="faq-icon">{openFaq === index ? '−' : '+'}</span>
+                        </button>
+                        <div className="faq-answer">
+                          <p>{faq.answer}</p>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
