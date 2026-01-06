@@ -37,7 +37,9 @@ try {
 
 // Fallback in-memory store
 const memoryStore = new Map();
+const shareLinksStore = new Map();
 const COLLECTION = 'testRuns';
+const SHARES_COLLECTION = 'sharedReports';
 
 async function saveTestRun(testRun) {
   if (useFirestore) {
@@ -109,4 +111,67 @@ async function deleteTestRun(id) {
   return true;
 }
 
-module.exports = { saveTestRun, getTestRun, getAllTestRuns, updateTestRun, deleteTestRun };
+// Share link functions
+async function createShareLink(shareData) {
+  if (useFirestore) {
+    try {
+      await db.collection(SHARES_COLLECTION).doc(shareData.shareId).set(shareData);
+      return shareData;
+    } catch (e) {
+      console.warn('Firestore share save failed, using memory:', e.message);
+    }
+  }
+  shareLinksStore.set(shareData.shareId, shareData);
+  return shareData;
+}
+
+async function getShareLink(shareId) {
+  if (useFirestore) {
+    try {
+      const doc = await db.collection(SHARES_COLLECTION).doc(shareId).get();
+      return doc.exists ? { shareId: doc.id, ...doc.data() } : null;
+    } catch (e) {
+      console.warn('Firestore share get failed, using memory:', e.message);
+    }
+  }
+  return shareLinksStore.get(shareId) || null;
+}
+
+async function getSharesByTestRun(testRunId) {
+  if (useFirestore) {
+    try {
+      const snapshot = await db.collection(SHARES_COLLECTION)
+        .where('testRunId', '==', testRunId)
+        .get();
+      return snapshot.docs.map(doc => ({ shareId: doc.id, ...doc.data() }));
+    } catch (e) {
+      console.warn('Firestore shares query failed, using memory:', e.message);
+    }
+  }
+  return Array.from(shareLinksStore.values()).filter(s => s.testRunId === testRunId);
+}
+
+async function deleteShareLink(shareId) {
+  if (useFirestore) {
+    try {
+      await db.collection(SHARES_COLLECTION).doc(shareId).delete();
+      return true;
+    } catch (e) {
+      console.warn('Firestore share delete failed, using memory:', e.message);
+    }
+  }
+  shareLinksStore.delete(shareId);
+  return true;
+}
+
+module.exports = { 
+  saveTestRun, 
+  getTestRun, 
+  getAllTestRuns, 
+  updateTestRun, 
+  deleteTestRun,
+  createShareLink,
+  getShareLink,
+  getSharesByTestRun,
+  deleteShareLink
+};

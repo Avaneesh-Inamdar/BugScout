@@ -1627,3 +1627,273 @@ h1 {
     order: 3;
   }
 }
+
+
+/* Share Modal */
+.share-modal {
+  background: var(--bg-secondary);
+  border-radius: var(--radius);
+  padding: 32px;
+  max-width: 500px;
+  width: 90%;
+  position: relative;
+}
+
+.share-modal-content {
+  text-align: center;
+}
+
+.share-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.share-modal h2 {
+  margin-bottom: 8px;
+}
+
+.share-modal > p {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.share-link-box {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.share-link-box input {
+  flex: 1;
+  padding: 12px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.share-expiry {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin-bottom: 20px;
+}
+
+.share-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+}
+
+.btn.shared {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: var(--success);
+  color: var(--success);
+}
+
+.btn-danger-outline {
+  border: 1px solid var(--danger);
+  color: var(--danger);
+  background: transparent;
+}
+
+.btn-danger-outline:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* Shared Report View */
+.shared-badge {
+  padding: 6px 14px;
+  background: linear-gradient(135deg, var(--accent), #a855f7);
+  color: white;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.loading-state, .error-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+  text-align: center;
+}
+
+.spinner.large {
+  width: 40px;
+  height: 40px;
+  border-width: 3px;
+}
+
+.error-icon {
+  font-size: 64px;
+  margin-bottom: 16px;
+}
+
+.error-state h2 {
+  margin-bottom: 8px;
+}
+
+.error-state p {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+.shared-report {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.shared-report-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.shared-report-header h1 {
+  font-size: 28px;
+  margin-bottom: 4px;
+}
+
+.shared-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.view-count {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.shared-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.shared-tests h2 {
+  margin-bottom: 16px;
+}
+
+.shared-test-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  margin-bottom: 16px;
+}
+
+.shared-test-card.pass {
+  border-left: 4px solid var(--success);
+}
+
+.shared-test-card.fail {
+  border-left: 4px solid var(--danger);
+}
+
+.shared-test-card .test-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.shared-test-card .test-header h3 {
+  flex: 1;
+  margin: 0;
+  font-size: 16px;
+}
+
+.status-icon {
+  font-size: 20px;
+}
+
+.shared-test-card .test-steps {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  padding: 12px;
+  margin-bottom: 12px;
+}
+
+.shared-test-card .step-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.shared-test-card .step-item:last-child {
+  border-bottom: none;
+}
+
+.shared-test-card .step-num {
+  width: 22px;
+  height: 22px;
+  background: var(--accent);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.shared-test-card .step-action {
+  font-weight: 600;
+  color: var(--accent);
+  text-transform: uppercase;
+  font-size: 11px;
+}
+
+.shared-test-card .step-target {
+  flex: 1;
+  color: var(--text-secondary);
+  font-family: monospace;
+  font-size: 12px;
+}
+
+.shared-test-card .step-value {
+  color: var(--success);
+  font-size: 12px;
+}
+
+.shared-footer {
+  text-align: center;
+  padding: 32px 0;
+  border-top: 1px solid var(--border);
+  margin-top: 32px;
+}
+
+.shared-footer p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .shared-report-header {
+    flex-direction: column;
+  }
+  
+  .shared-stats {
+    grid-template-columns: 1fr;
+  }
+  
+  .share-link-box {
+    flex-direction: column;
+  }
+  
+  .share-actions {
+    flex-direction: column;
+  }
+}

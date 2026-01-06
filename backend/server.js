@@ -283,6 +283,112 @@ app.get('/api/recording/sessions', (req, res) => {
   res.json(sessions);
 });
 
+// Shareable Reports - Create share link
+app.post('/api/test-runs/:id/share', async (req, res) => {
+  try {
+    const testRun = await firestoreService.getTestRun(req.params.id);
+    if (!testRun) {
+      return res.status(404).json({ error: 'Test run not found' });
+    }
+
+    const { expiresIn } = req.body; // optional: hours until expiry
+    const shareId = uuidv4().substring(0, 8); // Short shareable ID
+    
+    const shareData = {
+      shareId,
+      testRunId: req.params.id,
+      createdAt: new Date().toISOString(),
+      expiresAt: expiresIn ? new Date(Date.now() + expiresIn * 60 * 60 * 1000).toISOString() : null,
+      viewCount: 0
+    };
+
+    await firestoreService.createShareLink(shareData);
+    
+    // Update test run with share info
+    await firestoreService.updateTestRun(req.params.id, { 
+      shareId,
+      sharedAt: shareData.createdAt 
+    });
+
+    res.json({ 
+      shareId, 
+      shareUrl: `/share/${shareId}`,
+      expiresAt: shareData.expiresAt 
+    });
+  } catch (error) {
+    console.error('Create share link error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Shareable Reports - Get shared report (public endpoint)
+app.get('/api/shared/:shareId', async (req, res) => {
+  try {
+    const shareLink = await firestoreService.getShareLink(req.params.shareId);
+    if (!shareLink) {
+      return res.status(404).json({ error: 'Share link not found or expired' });
+    }
+
+    // Check expiry
+    if (shareLink.expiresAt && new Date(shareLink.expiresAt) < new Date()) {
+      return res.status(410).json({ error: 'Share link has expired' });
+    }
+
+    const testRun = await firestoreService.getTestRun(shareLink.testRunId);
+    if (!testRun) {
+      return res.status(404).json({ error: 'Test run not found' });
+    }
+
+    // Increment view count (fire and forget)
+    firestoreService.createShareLink({ 
+      ...shareLink, 
+      viewCount: (shareLink.viewCount || 0) + 1 
+    }).catch(() => {});
+
+    // Return sanitized test run data for public viewing
+    res.json({
+      shareId: req.params.shareId,
+      sharedAt: shareLink.createdAt,
+      viewCount: (shareLink.viewCount || 0) + 1,
+      testRun: {
+        id: testRun.id,
+        url: testRun.url,
+        status: testRun.status,
+        createdAt: testRun.createdAt,
+        completedAt: testRun.completedAt,
+        pageData: testRun.pageData,
+        tests: testRun.tests,
+        confidence: testRun.confidence,
+        visualDiff: testRun.visualDiff
+      }
+    });
+  } catch (error) {
+    console.error('Get shared report error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Shareable Reports - Revoke share link
+app.delete('/api/test-runs/:id/share', async (req, res) => {
+  try {
+    const testRun = await firestoreService.getTestRun(req.params.id);
+    if (!testRun || !testRun.shareId) {
+      return res.status(404).json({ error: 'Share link not found' });
+    }
+
+    await firestoreService.deleteShareLink(testRun.shareId);
+    await firestoreService.updateTestRun(req.params.id, { 
+      shareId: null, 
+      sharedAt: null 
+    });
+
+    res.json({ success: true, message: 'Share link revoked' });
+  } catch (error) {
+    console.error('Revoke share link error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`QA Agent API running on port ${PORT}`);

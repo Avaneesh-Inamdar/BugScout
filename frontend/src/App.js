@@ -23,11 +23,38 @@ function App() {
   const [recordingSession, setRecordingSession] = useState(null);
   const [recordingLoading, setRecordingLoading] = useState(false);
   const [flowName, setFlowName] = useState('');
+  const [shareModal, setShareModal] = useState(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [sharedReport, setSharedReport] = useState(null);
+  const [sharedReportLoading, setSharedReportLoading] = useState(false);
 
   useEffect(() => {
+    // Check if we're on a shared report URL
+    const path = window.location.pathname;
+    if (path.startsWith('/share/')) {
+      const shareId = path.split('/share/')[1];
+      if (shareId) {
+        loadSharedReport(shareId);
+        return;
+      }
+    }
     fetchTestRuns();
     document.body.classList.toggle('dark', darkMode);
   }, [darkMode]);
+
+  const loadSharedReport = async (shareId) => {
+    setSharedReportLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/shared/${shareId}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setSharedReport(data);
+    } catch (err) {
+      setSharedReport({ error: err.message });
+    } finally {
+      setSharedReportLoading(false);
+    }
+  };
 
   const fetchTestRuns = async () => {
     try {
@@ -375,6 +402,53 @@ function App() {
     }
   };
 
+  // Share Functions
+  const createShareLink = async (expiresIn = null) => {
+    if (!currentRun) return;
+    setShareLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/test-runs/${currentRun.id}/share`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expiresIn })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      
+      const fullUrl = `${window.location.origin}/share/${data.shareId}`;
+      setShareModal({ ...data, fullUrl });
+      
+      // Update current run with share info
+      setCurrentRun({ ...currentRun, shareId: data.shareId });
+      fetchTestRuns();
+    } catch (err) {
+      alert('Failed to create share link: ' + err.message);
+    } finally {
+      setShareLoading(false);
+    }
+  };
+
+  const revokeShareLink = async () => {
+    if (!currentRun?.shareId) return;
+    if (!window.confirm('Revoke this share link? Anyone with the link will no longer be able to view the report.')) return;
+    
+    try {
+      await fetch(`${API_URL}/api/test-runs/${currentRun.id}/share`, {
+        method: 'DELETE'
+      });
+      setCurrentRun({ ...currentRun, shareId: null });
+      setShareModal(null);
+      fetchTestRuns();
+    } catch (err) {
+      alert('Failed to revoke share link: ' + err.message);
+    }
+  };
+
+  const copyShareLink = (url) => {
+    navigator.clipboard.writeText(url);
+    alert('Link copied to clipboard!');
+  };
+
   const getMetricStatus = (metric, value) => {
     const thresholds = {
       fcp: { good: 1800, poor: 3000 },
@@ -424,6 +498,137 @@ function App() {
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
+      {/* Shared Report View */}
+      {(sharedReport || sharedReportLoading) && (
+        <>
+          <nav className="navbar">
+            <div className="nav-brand">
+              <span className="logo">🔬</span>
+              <span className="brand-text">BugScout</span>
+            </div>
+            <span className="shared-badge">📤 Shared Report</span>
+            <button className="theme-toggle" onClick={toggleDarkMode}>
+              {darkMode ? '☀️' : '🌙'}
+            </button>
+          </nav>
+          <main className="main-content">
+            {sharedReportLoading ? (
+              <div className="loading-state">
+                <span className="spinner large"></span>
+                <p>Loading shared report...</p>
+              </div>
+            ) : sharedReport.error ? (
+              <div className="error-state">
+                <div className="error-icon">❌</div>
+                <h2>Report Not Available</h2>
+                <p>{sharedReport.error}</p>
+                <a href="/" className="btn btn-primary">Go to BugScout</a>
+              </div>
+            ) : (
+              <div className="shared-report">
+                <div className="shared-report-header">
+                  <div>
+                    <h1>{new URL(sharedReport.testRun.url).hostname}</h1>
+                    <p className="subtitle">{sharedReport.testRun.url}</p>
+                  </div>
+                  <div className="shared-meta">
+                    <span className={`status-badge ${getStatusClass(sharedReport.testRun.status)}`}>
+                      {sharedReport.testRun.status.replace(/_/g, ' ')}
+                    </span>
+                    <span className="view-count">👁️ {sharedReport.viewCount} views</span>
+                  </div>
+                </div>
+
+                <div className="shared-stats">
+                  <div className="stat-card">
+                    <div className="stat-value">{sharedReport.testRun.tests?.length || 0}</div>
+                    <div className="stat-label">Tests</div>
+                  </div>
+                  <div className="stat-card success">
+                    <div className="stat-value">{sharedReport.testRun.tests?.filter(t => t.status === 'pass').length || 0}</div>
+                    <div className="stat-label">Passed</div>
+                  </div>
+                  <div className="stat-card danger">
+                    <div className="stat-value">{sharedReport.testRun.tests?.filter(t => t.status === 'fail').length || 0}</div>
+                    <div className="stat-label">Failed</div>
+                  </div>
+                </div>
+
+                <div className="shared-tests">
+                  <h2>Test Results</h2>
+                  {sharedReport.testRun.tests?.map((test, idx) => (
+                    <div key={idx} className={`shared-test-card ${test.status}`}>
+                      <div className="test-header">
+                        <span className={`status-icon ${test.status}`}>
+                          {test.status === 'pass' ? '✅' : test.status === 'fail' ? '❌' : '⏳'}
+                        </span>
+                        <h3>{test.name}</h3>
+                        <span className={`type-badge ${test.type}`}>{test.type}</span>
+                      </div>
+                      
+                      {test.steps && (
+                        <div className="test-steps">
+                          {test.steps.map((step, sIdx) => (
+                            <div key={sIdx} className="step-item">
+                              <span className="step-num">{sIdx + 1}</span>
+                              <span className="step-action">{step.action}</span>
+                              <span className="step-target">{step.target}</span>
+                              {step.value && <span className="step-value">"{step.value}"</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {test.error && <div className="error-box">❌ {test.error}</div>}
+
+                      {test.explanation && (
+                        <div className="ai-explanation">
+                          <div className="explanation-header">
+                            <span className="ai-badge">🤖 AI Analysis</span>
+                          </div>
+                          <p>{test.explanation.summary}</p>
+                          <p><strong>Suggested fix:</strong> {test.explanation.suggestedFix}</p>
+                        </div>
+                      )}
+
+                      {test.screenshots?.length > 0 && (
+                        <div className="screenshots-row">
+                          {test.screenshots.map((src, i) => (
+                            <img
+                              key={i}
+                              src={`${API_URL}${src}`}
+                              alt={`Screenshot ${i + 1}`}
+                              className="screenshot-thumb"
+                              onClick={() => setModalImage(`${API_URL}${src}`)}
+                            />
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+
+                <div className="shared-footer">
+                  <p>Shared on {new Date(sharedReport.sharedAt).toLocaleString()}</p>
+                  <a href="/" className="btn btn-primary">Create Your Own Tests →</a>
+                </div>
+              </div>
+            )}
+          </main>
+          {modalImage && (
+            <div className="modal-overlay" onClick={() => setModalImage(null)}>
+              <div className="modal-content" onClick={e => e.stopPropagation()}>
+                <button className="modal-close" onClick={() => setModalImage(null)}>✕</button>
+                <img src={modalImage} alt="Screenshot" />
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Regular App View */}
+      {!sharedReport && !sharedReportLoading && (
+        <>
       <nav className="navbar">
         <div className="nav-brand">
           <span className="logo">🔬</span>
@@ -609,6 +814,22 @@ function App() {
                 <p className="subtitle">{currentRun.url}</p>
               </div>
               <div className="editor-actions">
+                {currentRun.shareId ? (
+                  <button className="btn btn-outline shared" onClick={() => setShareModal({ 
+                    shareId: currentRun.shareId, 
+                    fullUrl: `${window.location.origin}/share/${currentRun.shareId}` 
+                  })}>
+                    🔗 Shared
+                  </button>
+                ) : (
+                  <button 
+                    className="btn btn-outline" 
+                    onClick={() => createShareLink()}
+                    disabled={shareLoading || currentRun.status === 'pending_review'}
+                  >
+                    {shareLoading ? <span className="spinner"></span> : '🔗'} Share
+                  </button>
+                )}
                 <button className="btn btn-outline" onClick={exportResults}>
                   📥 Export
                 </button>
@@ -1274,6 +1495,47 @@ function App() {
         </main>
       )}
 
+      {/* Share Modal */}
+      {shareModal && (
+        <div className="modal-overlay" onClick={() => setShareModal(null)}>
+          <div className="share-modal" onClick={e => e.stopPropagation()}>
+            <button className="modal-close" onClick={() => setShareModal(null)}>✕</button>
+            <div className="share-modal-content">
+              <div className="share-icon">🔗</div>
+              <h2>Share Test Report</h2>
+              <p>Anyone with this link can view the test results</p>
+              
+              <div className="share-link-box">
+                <input 
+                  type="text" 
+                  value={shareModal.fullUrl} 
+                  readOnly 
+                  onClick={(e) => e.target.select()}
+                />
+                <button className="btn btn-primary" onClick={() => copyShareLink(shareModal.fullUrl)}>
+                  📋 Copy
+                </button>
+              </div>
+
+              {shareModal.expiresAt && (
+                <p className="share-expiry">
+                  ⏰ Expires: {new Date(shareModal.expiresAt).toLocaleString()}
+                </p>
+              )}
+
+              <div className="share-actions">
+                <button className="btn btn-outline" onClick={() => window.open(shareModal.fullUrl, '_blank')}>
+                  🔍 Preview
+                </button>
+                <button className="btn btn-danger-outline" onClick={revokeShareLink}>
+                  🗑️ Revoke Link
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Screenshot Modal */}
       {modalImage && (
         <div className="modal-overlay" onClick={() => setModalImage(null)}>
@@ -1282,6 +1544,8 @@ function App() {
             <img src={modalImage} alt="Screenshot" />
           </div>
         </div>
+      )}
+        </>
       )}
     </div>
   );
