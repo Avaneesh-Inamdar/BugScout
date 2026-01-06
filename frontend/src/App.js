@@ -16,6 +16,8 @@ function App() {
   const [a11yLoading, setA11yLoading] = useState(false);
   const [suggestions, setSuggestions] = useState(null);
   const [suggestLoading, setSuggestLoading] = useState(false);
+  const [visualDiff, setVisualDiff] = useState(null);
+  const [diffLoading, setDiffLoading] = useState(false);
 
   useEffect(() => {
     fetchTestRuns();
@@ -236,6 +238,23 @@ function App() {
     return colors[priority] || '';
   };
 
+  const runVisualDiff = async () => {
+    if (!currentRun) return;
+    setDiffLoading(true);
+    setVisualDiff(null);
+    try {
+      const res = await fetch(`${API_URL}/api/test-runs/${currentRun.id}/visual-diff`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      setVisualDiff(data);
+    } catch (err) {
+      alert('Visual diff failed: ' + err.message);
+    } finally {
+      setDiffLoading(false);
+    }
+  };
+
   const getStatusClass = (status) => {
     if (status === 'pass' || status === 'completed') return 'status-pass';
     if (status === 'fail' || status === 'completed_with_failures') return 'status-fail';
@@ -439,6 +458,13 @@ function App() {
                 <button className="btn btn-outline" onClick={exportResults}>
                   📥 Export
                 </button>
+                <button 
+                  className="btn btn-outline" 
+                  onClick={runVisualDiff}
+                  disabled={diffLoading || currentRun.status === 'pending_review'}
+                >
+                  {diffLoading ? <span className="spinner"></span> : '🔍'} Visual Diff
+                </button>
                 <button className="btn btn-secondary" onClick={addCustomTest}>
                   ➕ Add Test
                 </button>
@@ -586,6 +612,62 @@ function App() {
                 </div>
               ))}
             </div>
+
+            {/* Visual Diff Results */}
+            {visualDiff && visualDiff.comparisons?.length > 0 && (
+              <div className="visual-diff-section">
+                <h2>🔍 Visual Regression Results</h2>
+                <div className="diff-grid">
+                  {visualDiff.comparisons.map((comp, idx) => (
+                    <div key={idx} className={`diff-card ${comp.status}`}>
+                      <div className="diff-header">
+                        <h3>{comp.testName}</h3>
+                        <span className={`diff-status ${comp.status}`}>
+                          {comp.status === 'changed' ? `${comp.diffPercent}% changed` : 
+                           comp.status === 'unchanged' ? 'No changes' : 'Error'}
+                        </span>
+                      </div>
+                      {comp.error ? (
+                        <p className="diff-error">{comp.error}</p>
+                      ) : (
+                        <div className="diff-images">
+                          <div className="diff-image-container">
+                            <span className="diff-label">Before</span>
+                            <img 
+                              src={`${API_URL}${comp.beforeImage}`} 
+                              alt="Before"
+                              onClick={() => setModalImage(`${API_URL}${comp.beforeImage}`)}
+                            />
+                          </div>
+                          <div className="diff-image-container">
+                            <span className="diff-label">After</span>
+                            <img 
+                              src={`${API_URL}${comp.afterImage}`} 
+                              alt="After"
+                              onClick={() => setModalImage(`${API_URL}${comp.afterImage}`)}
+                            />
+                          </div>
+                          <div className="diff-image-container highlight">
+                            <span className="diff-label">Diff</span>
+                            <img 
+                              src={`${API_URL}${comp.diffImage}`} 
+                              alt="Diff"
+                              onClick={() => setModalImage(`${API_URL}${comp.diffImage}`)}
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {comp.diffPixels > 0 && (
+                        <div className="diff-stats">
+                          <span>{comp.diffPixels.toLocaleString()} pixels changed</span>
+                          <span>{comp.width}x{comp.height}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         )}
 

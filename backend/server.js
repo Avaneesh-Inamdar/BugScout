@@ -10,6 +10,7 @@ const testExecutor = require('./services/testExecutor');
 const firestoreService = require('./services/firestoreService');
 const accessibilityAuditor = require('./services/accessibilityAuditor');
 const testSuggester = require('./services/testSuggester');
+const visualDiff = require('./services/visualDiff');
 
 const app = express();
 app.use(cors());
@@ -176,6 +177,27 @@ app.post('/api/suggest-tests', async (req, res) => {
     res.json({ url, suggestions, pageType: pageData.pageType });
   } catch (error) {
     console.error('Test suggestions error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Visual Regression - Compare screenshots in a test run
+app.post('/api/test-runs/:id/visual-diff', async (req, res) => {
+  try {
+    const testRun = await firestoreService.getTestRun(req.params.id);
+    if (!testRun) {
+      return res.status(404).json({ error: 'Test run not found' });
+    }
+
+    console.log(`[VisualDiff] Comparing screenshots for: ${req.params.id}`);
+    const comparisons = await visualDiff.compareTestRun(testRun);
+    
+    // Save visual diff results to test run
+    await firestoreService.updateTestRun(req.params.id, { visualDiff: comparisons });
+    
+    res.json({ testRunId: req.params.id, comparisons });
+  } catch (error) {
+    console.error('Visual diff error:', error);
     res.status(500).json({ error: error.message });
   }
 });

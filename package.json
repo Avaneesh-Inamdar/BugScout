@@ -17,7 +17,9 @@
     "firebase-admin": "^11.11.0",
     "groq-sdk": "^0.3.2",
     "uuid": "^9.0.0",
-    "multer": "^1.4.5-lts.1"
+    "multer": "^1.4.5-lts.1",
+    "pngjs": "^7.0.0",
+    "pixelmatch": "^5.3.0"
   },
   "devDependencies": {
     "nodemon": "^3.0.2"
