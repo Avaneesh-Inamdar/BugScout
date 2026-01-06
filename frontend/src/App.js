@@ -773,28 +773,55 @@ function App() {
                     </button>
                   </div>
                   <div className="hero-visual">
-                    <div className="hero-mockup">
-                      <div className="mockup-header">
-                        <span className="dot red"></span>
-                        <span className="dot yellow"></span>
-                        <span className="dot green"></span>
+                    <div className="hero-mockup-v2">
+                      <div className="mockup-terminal-header">
+                        <div className="terminal-dots">
+                          <span className="tdot"></span>
+                          <span className="tdot"></span>
+                          <span className="tdot"></span>
+                        </div>
+                        <span className="terminal-title">BugScout Test Runner</span>
+                        <div className="terminal-actions">
+                          <span className="live-indicator"></span>
+                          <span>Live</span>
+                        </div>
                       </div>
-                      <div className="mockup-content">
-                        <div className="mock-test pass">
-                          <span className="mock-icon">✅</span>
-                          <span>Login form validation</span>
+                      <div className="mockup-terminal-body">
+                        <div className="test-result-row success">
+                          <div className="result-status">
+                            <span className="status-dot success"></span>
+                            <span className="status-text">PASS</span>
+                          </div>
+                          <span className="result-name">Login form validation</span>
+                          <span className="result-time">124ms</span>
                         </div>
-                        <div className="mock-test pass">
-                          <span className="mock-icon">✅</span>
-                          <span>Password strength check</span>
+                        <div className="test-result-row success">
+                          <div className="result-status">
+                            <span className="status-dot success"></span>
+                            <span className="status-text">PASS</span>
+                          </div>
+                          <span className="result-name">Password strength check</span>
+                          <span className="result-time">89ms</span>
                         </div>
-                        <div className="mock-test fail">
-                          <span className="mock-icon">❌</span>
-                          <span>Empty email submission</span>
+                        <div className="test-result-row failure">
+                          <div className="result-status">
+                            <span className="status-dot failure"></span>
+                            <span className="status-text">FAIL</span>
+                          </div>
+                          <span className="result-name">Empty email submission</span>
+                          <span className="result-time">201ms</span>
                         </div>
-                        <div className="mock-ai">
-                          <span className="ai-badge-sm">🤖 AI</span>
-                          <span>Missing error message for invalid email format</span>
+                        <div className="ai-insight-box">
+                          <div className="ai-insight-header">
+                            <span className="ai-icon">✨</span>
+                            <span>AI Insight</span>
+                          </div>
+                          <p>Missing error message for invalid email format. Add validation feedback to improve UX.</p>
+                        </div>
+                        <div className="test-summary">
+                          <span className="summary-item"><strong>3</strong> tests</span>
+                          <span className="summary-item success"><strong>2</strong> passed</span>
+                          <span className="summary-item failure"><strong>1</strong> failed</span>
                         </div>
                       </div>
                     </div>
