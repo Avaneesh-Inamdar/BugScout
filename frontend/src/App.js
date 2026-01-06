@@ -751,28 +751,101 @@ function App() {
         {/* Dashboard Tab */}
         {activeTab === 'dashboard' && (
           <div className="dashboard">
-            <h1>Welcome to BugScout</h1>
-            <p className="subtitle">AI-powered autonomous QA testing</p>
-            
             {!user ? (
-              <div className="login-prompt">
-                <div className="login-card">
-                  <div className="login-icon">🔐</div>
-                  <h2>Sign in to get started</h2>
-                  <p>Create and manage your automated tests, track history, and share reports with your team.</p>
-                  <button className="btn btn-primary btn-large" onClick={handleSignIn}>
+              <div className="landing-page">
+                <div className="landing-hero">
+                  <div className="hero-content">
+                    <div className="hero-badge">🚀 AI-Powered QA Testing</div>
+                    <h1>Find Bugs Before<br/><span className="gradient-text">Your Users Do</span></h1>
+                    <p className="hero-subtitle">
+                      BugScout automatically generates, executes, and analyzes tests for your web applications. 
+                      Get AI-powered insights, accessibility audits, and performance reports in minutes.
+                    </p>
+                    <button className="btn btn-primary btn-xl" onClick={handleSignIn}>
+                      <img src="https://www.google.com/favicon.ico" alt="Google" className="google-icon" />
+                      Get Started Free
+                    </button>
+                    <p className="hero-note">No credit card required • Free forever for personal use</p>
+                  </div>
+                  <div className="hero-visual">
+                    <div className="hero-mockup">
+                      <div className="mockup-header">
+                        <span className="dot red"></span>
+                        <span className="dot yellow"></span>
+                        <span className="dot green"></span>
+                      </div>
+                      <div className="mockup-content">
+                        <div className="mock-test pass">
+                          <span className="mock-icon">✅</span>
+                          <span>Login form validation</span>
+                        </div>
+                        <div className="mock-test pass">
+                          <span className="mock-icon">✅</span>
+                          <span>Password strength check</span>
+                        </div>
+                        <div className="mock-test fail">
+                          <span className="mock-icon">❌</span>
+                          <span>Empty email submission</span>
+                        </div>
+                        <div className="mock-ai">
+                          <span className="ai-badge-sm">🤖 AI</span>
+                          <span>Missing error message for invalid email format</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="landing-features">
+                  <h2>Everything you need to ship with confidence</h2>
+                  <div className="features-grid">
+                    <div className="feature-card">
+                      <div className="feature-icon">🤖</div>
+                      <h3>AI Test Generation</h3>
+                      <p>Automatically generate comprehensive test plans by analyzing your pages</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">🐛</div>
+                      <h3>Smart Bug Explanations</h3>
+                      <p>Get plain-English explanations of failures with suggested fixes</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">♿</div>
+                      <h3>Accessibility Audits</h3>
+                      <p>WCAG compliance checks for color contrast, alt text, and more</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">⚡</div>
+                      <h3>Performance Insights</h3>
+                      <p>Core Web Vitals, load times, and optimization recommendations</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">🔍</div>
+                      <h3>Visual Regression</h3>
+                      <p>Catch unintended UI changes with screenshot comparisons</p>
+                    </div>
+                    <div className="feature-card">
+                      <div className="feature-icon">🎬</div>
+                      <h3>Flow Recording</h3>
+                      <p>Record user flows and replay them as automated tests</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="landing-cta">
+                  <h2>Ready to catch bugs automatically?</h2>
+                  <p>Join developers who trust BugScout for their QA needs</p>
+                  <button className="btn btn-primary btn-xl" onClick={handleSignIn}>
                     <img src="https://www.google.com/favicon.ico" alt="Google" className="google-icon" />
                     Sign in with Google
                   </button>
-                  <div className="login-features">
-                    <div className="feature-item">✅ Save your test history</div>
-                    <div className="feature-item">✅ Share reports with team</div>
-                    <div className="feature-item">✅ Access from any device</div>
-                  </div>
                 </div>
               </div>
             ) : (
               <>
+                <h1>Welcome back, {user.displayName?.split(' ')[0]}!</h1>
+                <p className="subtitle">AI-powered autonomous QA testing</p>
+                
                 <div className="stats-grid">
                   <div className="stat-card">
                     <div className="stat-icon">📋</div>
