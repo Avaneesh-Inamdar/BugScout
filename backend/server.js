@@ -29,7 +29,7 @@ app.get('/health', (req, res) => {
 // Generate tests for a URL
 app.post('/api/generate-tests', async (req, res) => {
   try {
-    const { url } = req.body;
+    const { url, userId } = req.body;
     if (!url) {
       return res.status(400).json({ error: 'URL is required' });
     }
@@ -48,6 +48,7 @@ app.post('/api/generate-tests', async (req, res) => {
     const testRun = {
       id: runId,
       url,
+      userId: userId || null,
       status: 'pending_review',
       createdAt: new Date().toISOString(),
       pageData: {
@@ -87,7 +88,8 @@ app.get('/api/test-runs/:id', async (req, res) => {
 // Get all test runs
 app.get('/api/test-runs', async (req, res) => {
   try {
-    const testRuns = await firestoreService.getAllTestRuns();
+    const { userId } = req.query;
+    const testRuns = await firestoreService.getAllTestRuns(userId);
     res.json(testRuns);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -251,13 +253,14 @@ app.get('/api/recording/:sessionId/status', async (req, res) => {
 // Flow Recording - Stop and save recording
 app.post('/api/recording/:sessionId/stop', async (req, res) => {
   try {
-    const { flowName } = req.body;
+    const { flowName, userId } = req.body;
     console.log(`[Recorder] Stopping recording: ${req.params.sessionId}`);
     const flow = await flowRecorder.stopRecording(req.params.sessionId, flowName);
     
     // Convert to test run and save
     const runId = uuidv4();
     const testRun = flowRecorder.flowToTestRun(flow, runId);
+    testRun.userId = userId || null;
     await firestoreService.saveTestRun(testRun);
     
     res.json({ flow, testRun });

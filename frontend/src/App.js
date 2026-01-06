@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import './firebase';
+import { auth, signInWithGoogle, logOut, onAuthStateChanged } from './firebase';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
@@ -27,19 +27,33 @@ function App() {
   const [shareLoading, setShareLoading] = useState(false);
   const [sharedReport, setSharedReport] = useState(null);
   const [sharedReportLoading, setSharedReportLoading] = useState(false);
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
 
   useEffect(() => {
+    // Listen for auth state changes
+    const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
+      setUser(currentUser);
+      setAuthLoading(false);
+      if (currentUser) {
+        fetchTestRuns(currentUser.uid);
+      } else {
+        setTestRuns([]);
+      }
+    });
+
     // Check if we're on a shared report URL
     const path = window.location.pathname;
     if (path.startsWith('/share/')) {
       const shareId = path.split('/share/')[1];
       if (shareId) {
         loadSharedReport(shareId);
-        return;
       }
     }
-    fetchTestRuns();
+    
     document.body.classList.toggle('dark', darkMode);
+    
+    return () => unsubscribe();
   }, [darkMode]);
 
   const loadSharedReport = async (shareId) => {
@@ -56,9 +70,10 @@ function App() {
     }
   };
 
-  const fetchTestRuns = async () => {
+  const fetchTestRuns = async (userId) => {
+    if (!userId) return;
     try {
-      const res = await fetch(`${API_URL}/api/test-runs`);
+      const res = await fetch(`${API_URL}/api/test-runs?userId=${userId}`);
       const data = await res.json();
       setTestRuns(data);
     } catch (err) {
@@ -72,18 +87,18 @@ function App() {
   };
 
   const generateTests = async (presetType = testPreset) => {
-    if (!url) return;
+    if (!url || !user) return;
     setLoading(true);
     try {
       const res = await fetch(`${API_URL}/api/generate-tests`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url, preset: presetType })
+        body: JSON.stringify({ url, preset: presetType, userId: user.uid })
       });
       const data = await res.json();
       setCurrentRun(data);
       setActiveTab('editor');
-      fetchTestRuns();
+      fetchTestRuns(user.uid);
     } catch (err) {
       alert('Failed to generate tests: ' + err.message);
     } finally {
@@ -101,7 +116,7 @@ function App() {
       });
       const data = await res.json();
       setCurrentRun(data);
-      fetchTestRuns();
+      if (user) fetchTestRuns(user.uid);
     } catch (err) {
       alert('Failed to execute tests: ' + err.message);
     } finally {
@@ -184,7 +199,7 @@ function App() {
     try {
       await fetch(`${API_URL}/api/test-runs/${id}`, { method: 'DELETE' });
       if (currentRun?.id === id) setCurrentRun(null);
-      fetchTestRuns();
+      if (user) fetchTestRuns(user.uid);
     } catch (err) {
       alert('Failed to delete: ' + err.message);
     }
@@ -370,7 +385,7 @@ function App() {
       const res = await fetch(`${API_URL}/api/recording/${recordingSession.sessionId}/stop`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ flowName: flowName || 'Recorded Flow' })
+        body: JSON.stringify({ flowName: flowName || 'Recorded Flow', userId: user?.uid })
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -379,7 +394,7 @@ function App() {
       setFlowName('');
       setCurrentRun(data.testRun);
       setActiveTab('editor');
-      fetchTestRuns();
+      if (user) fetchTestRuns(user.uid);
       alert('Recording saved! You can now edit and run the test.');
     } catch (err) {
       alert('Failed to stop recording: ' + err.message);
@@ -420,7 +435,7 @@ function App() {
       
       // Update current run with share info
       setCurrentRun({ ...currentRun, shareId: data.shareId });
-      fetchTestRuns();
+      if (user) fetchTestRuns(user.uid);
     } catch (err) {
       alert('Failed to create share link: ' + err.message);
     } finally {
@@ -438,7 +453,7 @@ function App() {
       });
       setCurrentRun({ ...currentRun, shareId: null });
       setShareModal(null);
-      fetchTestRuns();
+      if (user) fetchTestRuns(user.uid);
     } catch (err) {
       alert('Failed to revoke share link: ' + err.message);
     }
@@ -447,6 +462,26 @@ function App() {
   const copyShareLink = (url) => {
     navigator.clipboard.writeText(url);
     alert('Link copied to clipboard!');
+  };
+
+  const handleSignIn = async () => {
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      console.error('Sign in error:', err);
+      alert('Failed to sign in: ' + err.message);
+    }
+  };
+
+  const handleSignOut = async () => {
+    try {
+      await logOut();
+      setCurrentRun(null);
+      setTestRuns([]);
+      setActiveTab('dashboard');
+    } catch (err) {
+      console.error('Sign out error:', err);
+    }
   };
 
   const getMetricStatus = (metric, value) => {
@@ -641,54 +676,75 @@ function App() {
           >
             📊 Dashboard
           </button>
-          <button 
-            className={`nav-tab ${activeTab === 'new' ? 'active' : ''}`}
-            onClick={() => setActiveTab('new')}
-          >
-            ➕ New Test
-          </button>
-          {currentRun && (
-            <button 
-              className={`nav-tab ${activeTab === 'editor' ? 'active' : ''}`}
-              onClick={() => setActiveTab('editor')}
-            >
-              ✏️ Editor
+          {user && (
+            <>
+              <button 
+                className={`nav-tab ${activeTab === 'new' ? 'active' : ''}`}
+                onClick={() => setActiveTab('new')}
+              >
+                ➕ New Test
+              </button>
+              {currentRun && (
+                <button 
+                  className={`nav-tab ${activeTab === 'editor' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('editor')}
+                >
+                  ✏️ Editor
+                </button>
+              )}
+              <button 
+                className={`nav-tab ${activeTab === 'history' ? 'active' : ''}`}
+                onClick={() => setActiveTab('history')}
+              >
+                📜 History
+              </button>
+              <button 
+                className={`nav-tab ${activeTab === 'accessibility' ? 'active' : ''}`}
+                onClick={() => setActiveTab('accessibility')}
+              >
+                ♿ Accessibility
+              </button>
+              <button 
+                className={`nav-tab ${activeTab === 'suggestions' ? 'active' : ''}`}
+                onClick={() => setActiveTab('suggestions')}
+              >
+                💡 Suggestions
+              </button>
+              <button 
+                className={`nav-tab ${activeTab === 'performance' ? 'active' : ''}`}
+                onClick={() => setActiveTab('performance')}
+              >
+                ⚡ Performance
+              </button>
+              <button 
+                className={`nav-tab ${activeTab === 'recorder' ? 'active' : ''}`}
+                onClick={() => setActiveTab('recorder')}
+              >
+                🎬 Recorder
+              </button>
+            </>
+          )}
+        </div>
+        <div className="nav-right">
+          {authLoading ? (
+            <span className="spinner"></span>
+          ) : user ? (
+            <div className="user-menu">
+              <img src={user.photoURL} alt={user.displayName} className="user-avatar" />
+              <span className="user-name">{user.displayName?.split(' ')[0]}</span>
+              <button className="btn btn-outline btn-sm" onClick={handleSignOut}>
+                Sign Out
+              </button>
+            </div>
+          ) : (
+            <button className="btn btn-primary" onClick={handleSignIn}>
+              🔐 Sign in with Google
             </button>
           )}
-          <button 
-            className={`nav-tab ${activeTab === 'history' ? 'active' : ''}`}
-            onClick={() => setActiveTab('history')}
-          >
-            📜 History
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'accessibility' ? 'active' : ''}`}
-            onClick={() => setActiveTab('accessibility')}
-          >
-            ♿ Accessibility
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'suggestions' ? 'active' : ''}`}
-            onClick={() => setActiveTab('suggestions')}
-          >
-            💡 Suggestions
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'performance' ? 'active' : ''}`}
-            onClick={() => setActiveTab('performance')}
-          >
-            ⚡ Performance
-          </button>
-          <button 
-            className={`nav-tab ${activeTab === 'recorder' ? 'active' : ''}`}
-            onClick={() => setActiveTab('recorder')}
-          >
-            🎬 Recorder
+          <button className="theme-toggle" onClick={toggleDarkMode}>
+            {darkMode ? '☀️' : '🌙'}
           </button>
         </div>
-        <button className="theme-toggle" onClick={toggleDarkMode}>
-          {darkMode ? '☀️' : '🌙'}
-        </button>
       </nav>
 
       <main className="main-content">
@@ -698,64 +754,85 @@ function App() {
             <h1>Welcome to BugScout</h1>
             <p className="subtitle">AI-powered autonomous QA testing</p>
             
-            <div className="stats-grid">
-              <div className="stat-card">
-                <div className="stat-icon">📋</div>
-                <div className="stat-value">{stats.totalRuns}</div>
-                <div className="stat-label">Total Tests</div>
-              </div>
-              <div className="stat-card success">
-                <div className="stat-icon">✅</div>
-                <div className="stat-value">{stats.passed}</div>
-                <div className="stat-label">Passed</div>
-              </div>
-              <div className="stat-card danger">
-                <div className="stat-icon">❌</div>
-                <div className="stat-value">{stats.failed}</div>
-                <div className="stat-label">Failed</div>
-              </div>
-              <div className="stat-card warning">
-                <div className="stat-icon">⏳</div>
-                <div className="stat-value">{stats.pending}</div>
-                <div className="stat-label">Pending</div>
-              </div>
-            </div>
-
-            <div className="quick-start">
-              <h2>Quick Start</h2>
-              <div className="input-group-large">
-                <input
-                  type="url"
-                  placeholder="Paste any URL to start testing..."
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && generateTests()}
-                />
-                <button 
-                  className="btn btn-primary btn-large" 
-                  onClick={() => generateTests()}
-                  disabled={loading || !url}
-                >
-                  {loading ? <span className="spinner"></span> : '🚀'} Start Testing
-                </button>
-              </div>
-            </div>
-
-            {testRuns.length > 0 && (
-              <div className="recent-tests">
-                <h2>Recent Tests</h2>
-                <div className="recent-grid">
-                  {testRuns.slice(0, 4).map(run => (
-                    <div key={run.id} className="recent-card" onClick={() => loadRun(run.id)}>
-                      <div className="recent-url">{new URL(run.url).hostname}</div>
-                      <div className="recent-meta">
-                        <span className={`status-dot ${getStatusClass(run.status)}`}></span>
-                        <span>{new Date(run.createdAt).toLocaleDateString()}</span>
-                      </div>
-                    </div>
-                  ))}
+            {!user ? (
+              <div className="login-prompt">
+                <div className="login-card">
+                  <div className="login-icon">🔐</div>
+                  <h2>Sign in to get started</h2>
+                  <p>Create and manage your automated tests, track history, and share reports with your team.</p>
+                  <button className="btn btn-primary btn-large" onClick={handleSignIn}>
+                    <img src="https://www.google.com/favicon.ico" alt="Google" className="google-icon" />
+                    Sign in with Google
+                  </button>
+                  <div className="login-features">
+                    <div className="feature-item">✅ Save your test history</div>
+                    <div className="feature-item">✅ Share reports with team</div>
+                    <div className="feature-item">✅ Access from any device</div>
+                  </div>
                 </div>
               </div>
+            ) : (
+              <>
+                <div className="stats-grid">
+                  <div className="stat-card">
+                    <div className="stat-icon">📋</div>
+                    <div className="stat-value">{stats.totalRuns}</div>
+                    <div className="stat-label">Total Tests</div>
+                  </div>
+                  <div className="stat-card success">
+                    <div className="stat-icon">✅</div>
+                    <div className="stat-value">{stats.passed}</div>
+                    <div className="stat-label">Passed</div>
+                  </div>
+                  <div className="stat-card danger">
+                    <div className="stat-icon">❌</div>
+                    <div className="stat-value">{stats.failed}</div>
+                    <div className="stat-label">Failed</div>
+                  </div>
+                  <div className="stat-card warning">
+                    <div className="stat-icon">⏳</div>
+                    <div className="stat-value">{stats.pending}</div>
+                    <div className="stat-label">Pending</div>
+                  </div>
+                </div>
+
+                <div className="quick-start">
+                  <h2>Quick Start</h2>
+                  <div className="input-group-large">
+                    <input
+                      type="url"
+                      placeholder="Paste any URL to start testing..."
+                      value={url}
+                      onChange={(e) => setUrl(e.target.value)}
+                      onKeyPress={(e) => e.key === 'Enter' && generateTests()}
+                    />
+                    <button 
+                      className="btn btn-primary btn-large" 
+                      onClick={() => generateTests()}
+                      disabled={loading || !url}
+                    >
+                      {loading ? <span className="spinner"></span> : '🚀'} Start Testing
+                    </button>
+                  </div>
+                </div>
+
+                {testRuns.length > 0 && (
+                  <div className="recent-tests">
+                    <h2>Recent Tests</h2>
+                    <div className="recent-grid">
+                      {testRuns.slice(0, 4).map(run => (
+                        <div key={run.id} className="recent-card" onClick={() => loadRun(run.id)}>
+                          <div className="recent-url">{new URL(run.url).hostname}</div>
+                          <div className="recent-meta">
+                            <span className={`status-dot ${getStatusClass(run.status)}`}></span>
+                            <span>{new Date(run.createdAt).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </div>
         )}

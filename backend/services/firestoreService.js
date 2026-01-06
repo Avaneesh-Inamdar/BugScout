@@ -66,18 +66,24 @@ async function getTestRun(id) {
   return memoryStore.get(id) || null;
 }
 
-async function getAllTestRuns() {
+async function getAllTestRuns(userId = null) {
   if (useFirestore) {
     try {
-      const snapshot = await db.collection(COLLECTION).orderBy('createdAt', 'desc').limit(50).get();
+      let query = db.collection(COLLECTION).orderBy('createdAt', 'desc').limit(50);
+      if (userId) {
+        query = db.collection(COLLECTION).where('userId', '==', userId).orderBy('createdAt', 'desc').limit(50);
+      }
+      const snapshot = await query.get();
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (e) {
       console.warn('Firestore getAll failed, using memory:', e.message);
     }
   }
-  return Array.from(memoryStore.values()).sort((a, b) => 
-    new Date(b.createdAt) - new Date(a.createdAt)
-  );
+  let runs = Array.from(memoryStore.values());
+  if (userId) {
+    runs = runs.filter(r => r.userId === userId);
+  }
+  return runs.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
 }
 
 async function updateTestRun(id, updates) {

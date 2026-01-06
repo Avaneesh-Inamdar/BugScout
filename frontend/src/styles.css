@@ -1897,3 +1897,108 @@ h1 {
     flex-direction: column;
   }
 }
+
+
+/* Auth UI */
+.nav-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-menu {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.user-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.login-prompt {
+  display: flex;
+  justify-content: center;
+  padding: 40px 20px;
+}
+
+.login-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 48px;
+  text-align: center;
+  max-width: 400px;
+}
+
+.login-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+}
+
+.login-card h2 {
+  margin-bottom: 12px;
+}
+
+.login-card > p {
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+  line-height: 1.6;
+}
+
+.login-card .btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin-bottom: 24px;
+}
+
+.google-icon {
+  width: 18px;
+  height: 18px;
+}
+
+.login-features {
+  text-align: left;
+}
+
+.feature-item {
+  padding: 8px 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+@media (max-width: 768px) {
+  .nav-right {
+    gap: 8px;
+  }
+  
+  .user-name {
+    display: none;
+  }
+  
+  .user-menu .btn {
+    padding: 4px 8px;
+    font-size: 11px;
+  }
+  
+  .login-card {
+    padding: 32px 24px;
+  }
+}
