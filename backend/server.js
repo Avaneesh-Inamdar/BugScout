@@ -9,6 +9,7 @@ const testGenerator = require('./services/testGenerator');
 const testExecutor = require('./services/testExecutor');
 const firestoreService = require('./services/firestoreService');
 const accessibilityAuditor = require('./services/accessibilityAuditor');
+const testSuggester = require('./services/testSuggester');
 
 const app = express();
 app.use(cors());
@@ -155,6 +156,26 @@ app.post('/api/accessibility-audit', async (req, res) => {
     res.json(results);
   } catch (error) {
     console.error('Accessibility audit error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Smart Test Suggestions
+app.post('/api/suggest-tests', async (req, res) => {
+  try {
+    const { url } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    console.log(`[Suggest] Analyzing: ${url}`);
+    const pageData = await pageInspector.inspect(url);
+    pageData.url = url;
+    
+    const suggestions = await testSuggester.suggest(pageData);
+    res.json({ url, suggestions, pageType: pageData.pageType });
+  } catch (error) {
+    console.error('Test suggestions error:', error);
     res.status(500).json({ error: error.message });
   }
 });

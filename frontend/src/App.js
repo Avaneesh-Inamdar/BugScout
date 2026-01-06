@@ -14,6 +14,8 @@ function App() {
   const [testPreset, setTestPreset] = useState('auto');
   const [a11yResults, setA11yResults] = useState(null);
   const [a11yLoading, setA11yLoading] = useState(false);
+  const [suggestions, setSuggestions] = useState(null);
+  const [suggestLoading, setSuggestLoading] = useState(false);
 
   useEffect(() => {
     fetchTestRuns();
@@ -199,6 +201,41 @@ function App() {
     return 'score-poor';
   };
 
+  const getTestSuggestions = async () => {
+    if (!url) return;
+    setSuggestLoading(true);
+    setSuggestions(null);
+    try {
+      const res = await fetch(`${API_URL}/api/suggest-tests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url })
+      });
+      const data = await res.json();
+      setSuggestions(data);
+    } catch (err) {
+      alert('Failed to get suggestions: ' + err.message);
+    } finally {
+      setSuggestLoading(false);
+    }
+  };
+
+  const getCategoryIcon = (category) => {
+    const icons = {
+      security: '🔒',
+      boundary: '📏',
+      edge_case: '🎯',
+      ux: '✨',
+      business_logic: '💼'
+    };
+    return icons[category] || '📋';
+  };
+
+  const getPriorityColor = (priority) => {
+    const colors = { high: 'priority-high', medium: 'priority-medium', low: 'priority-low' };
+    return colors[priority] || '';
+  };
+
   const getStatusClass = (status) => {
     if (status === 'pass' || status === 'completed') return 'status-pass';
     if (status === 'fail' || status === 'completed_with_failures') return 'status-fail';
@@ -263,6 +300,12 @@ function App() {
             onClick={() => setActiveTab('accessibility')}
           >
             ♿ Accessibility
+          </button>
+          <button 
+            className={`nav-tab ${activeTab === 'suggestions' ? 'active' : ''}`}
+            onClick={() => setActiveTab('suggestions')}
+          >
+            💡 Suggestions
           </button>
         </div>
         <button className="theme-toggle" onClick={toggleDarkMode}>
@@ -591,6 +634,75 @@ function App() {
           </div>
         )}
       </main>
+
+            {/* Suggestions Tab */}
+      {activeTab === 'suggestions' && (
+        <main className="main-content">
+          <div className="suggestions-page">
+            <h1>💡 Smart Test Suggestions</h1>
+            <p className="subtitle">AI-powered edge cases and security tests you might miss</p>
+
+            <div className="card">
+              <label className="input-label">Website URL</label>
+              <div className="input-group-large">
+                <input
+                  type="url"
+                  placeholder="https://example.com/login"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && getTestSuggestions()}
+                />
+                <button 
+                  className="btn btn-primary btn-large"
+                  onClick={getTestSuggestions}
+                  disabled={suggestLoading || !url}
+                >
+                  {suggestLoading ? <><span className="spinner"></span> Analyzing...</> : '🧠 Get Suggestions'}
+                </button>
+              </div>
+            </div>
+
+            {suggestions && (
+              <div className="suggestions-results">
+                <div className="suggestions-header">
+                  <h2>Found {suggestions.suggestions?.length || 0} Test Ideas</h2>
+                  <span className="page-type-badge">📄 {suggestions.pageType || 'Unknown'} page</span>
+                </div>
+
+                <div className="suggestions-grid">
+                  {suggestions.suggestions?.map((suggestion, idx) => (
+                    <div key={idx} className={`suggestion-card ${suggestion.category}`}>
+                      <div className="suggestion-top">
+                        <span className="category-icon">{getCategoryIcon(suggestion.category)}</span>
+                        <span className={`priority-badge ${getPriorityColor(suggestion.priority)}`}>
+                          {suggestion.priority}
+                        </span>
+                        {suggestion.source === 'ai' && <span className="ai-tag">🤖 AI</span>}
+                      </div>
+                      <h3>{suggestion.title}</h3>
+                      <p className="suggestion-desc">{suggestion.description}</p>
+                      
+                      <div className="suggestion-steps">
+                        <strong>Test Steps:</strong>
+                        <ol>
+                          {suggestion.testSteps?.map((step, i) => (
+                            <li key={i}>{step}</li>
+                          ))}
+                        </ol>
+                      </div>
+
+                      <div className="suggestion-risk">
+                        <span className="risk-icon">⚠️</span>
+                        <span>{suggestion.risk}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </main>
+      )}
 
       {/* Accessibility Tab */}
       {activeTab === 'accessibility' && (
