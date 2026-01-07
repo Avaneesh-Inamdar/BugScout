@@ -12,7 +12,13 @@ async function startRecording(url) {
   
   const browser = await chromium.launch({
     headless: false, // User needs to see and interact
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--disable-extensions'
+    ]
   });
   
   const context = await browser.newContext({

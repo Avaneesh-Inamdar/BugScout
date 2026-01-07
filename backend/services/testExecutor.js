@@ -5,7 +5,15 @@ const bugExplainer = require('./bugExplainer');
 async function execute(testRun) {
   const browser = await chromium.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: [
+      '--no-sandbox',
+      '--disable-setuid-sandbox',
+      '--disable-dev-shm-usage',
+      '--disable-gpu',
+      '--single-process',
+      '--no-zygote',
+      '--disable-extensions'
+    ]
   });
   
   // Build element ID -> selector map from pageData
