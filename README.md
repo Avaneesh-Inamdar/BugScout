@@ -69,7 +69,6 @@ Generate shareable links for test reports:
 - **Firebase Hosting** - Fast, secure hosting for the web application
 - **Firebase Authentication** - Google Sign-In integration for user management
 - **Cloud Firestore** - NoSQL database for storing test runs and results
-- **Firebase Storage** - Screenshot and asset storage
 
 ### Frontend
 - **React.js** - Modern UI framework
