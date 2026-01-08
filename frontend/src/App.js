@@ -1194,7 +1194,14 @@ function App() {
             </div>
 
             <div className="test-list">
-              {currentRun.tests.map((test, tIdx) => (
+              {(currentRun.tests || []).length === 0 ? (
+                <div className="empty-state">
+                  <p>No tests generated. Try adding a custom test or use a different URL.</p>
+                  <button className="btn btn-primary" onClick={addCustomTest}>
+                    ➕ Add Custom Test
+                  </button>
+                </div>
+              ) : currentRun.tests.map((test, tIdx) => (
                 <div key={test.id} className={`test-card ${test.type === 'custom' ? 'custom' : ''}`}>
                   <div className="test-card-header">
                     <input
@@ -1314,7 +1321,8 @@ function App() {
                     </div>
                   )}
                 </div>
-              ))}
+              ))
+              }
             </div>
 
             {/* Visual Diff Results */}

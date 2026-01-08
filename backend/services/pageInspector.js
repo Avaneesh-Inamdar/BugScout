@@ -218,6 +218,12 @@ async function inspect(url) {
 function detectPageType(elements, text) {
   const hasEmail = elements.some(e => e.type === 'email' || e.role === 'email_input');
   const hasPassword = elements.some(e => e.type === 'password' || e.role === 'password_input');
+  const hasSearchInput = elements.some(e => 
+    e.type === 'search' || 
+    e.placeholder?.toLowerCase().includes('search') ||
+    e.name?.toLowerCase().includes('search') ||
+    e.ariaLabel?.toLowerCase().includes('search')
+  );
   const textLower = text.toLowerCase();
   
   if (hasEmail && hasPassword) {
@@ -231,7 +237,7 @@ function detectPageType(elements, text) {
     return 'checkout';
   }
   
-  if (textLower.includes('search')) {
+  if (hasSearchInput || textLower.includes('search') || textLower.includes('wikipedia')) {
     return 'search';
   }
   
