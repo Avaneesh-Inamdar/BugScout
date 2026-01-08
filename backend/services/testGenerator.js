@@ -40,23 +40,29 @@ Input:
 async function generate(pageData) {
   // Try AI first, fall back to rules
   try {
-    if (process.env.GROQ_API_KEY) {
+    if (apiKeyManager.hasKeys()) {
       const aiResult = await generateWithAI(pageData);
+      // Validate AI result has real data, not template placeholders
       if (aiResult && aiResult.test_plan && aiResult.test_plan.length > 0) {
-        return aiResult;
+        const hasRealData = aiResult.test_plan.some(t => 
+          t.name && !t.name.includes('Test name here') && 
+          t.steps?.some(s => s.target && s.target !== 'e1' && s.target !== 'submit')
+        );
+        if (hasRealData) {
+          return aiResult;
+        }
+        console.warn('AI returned template data, using rule-based fallback');
       }
     }
   } catch (error) {
     console.warn('AI generation failed, using fallback:', error.message);
   }
   
-  // Rule-based fallback
+  // Rule-based fallback - always works
   return generateWithRules(pageData);
 }
 
 async function generateWithAI(pageData) {
-  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-  
   // Build a map of internal IDs to real selectors for post-processing
   const idToSelector = {};
   pageData.elements.forEach(e => {
@@ -72,20 +78,23 @@ async function generateWithAI(pageData) {
       role: e.role,
       type: e.type,
       placeholder: e.placeholder,
-      selector: e.selector  // Emphasize the real selector
+      selector: e.selector
     }))
   };
   
-  const completion = await groq.chat.completions.create({
-    messages: [
-      {
-        role: 'user',
-        content: GROQ_PROMPT + JSON.stringify(inputData, null, 2)
-      }
-    ],
-    model: 'llama-3.1-8b-instant',
-    temperature: 0.1,
-    max_tokens: 2000
+  // Use API key manager with automatic fallback
+  const completion = await apiKeyManager.executeWithFallback(async (groq) => {
+    return await groq.chat.completions.create({
+      messages: [
+        {
+          role: 'user',
+          content: GROQ_PROMPT + JSON.stringify(inputData, null, 2)
+        }
+      ],
+      model: 'llama-3.1-8b-instant',
+      temperature: 0.1,
+      max_tokens: 2000
+    });
   });
   
   const responseText = completion.choices[0]?.message?.content || '';
