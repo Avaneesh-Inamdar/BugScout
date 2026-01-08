@@ -38,17 +38,53 @@ async function inspect(url) {
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8'
     });
     
-    try {
-      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
-      // Wait a bit for dynamic content
-      await page.waitForTimeout(2000);
-    } catch (navError) {
-      console.warn(`Navigation warning for ${url}:`, navError.message);
-      // Continue anyway - page might have partially loaded
+    // Navigate with retry logic for redirects
+    let retries = 3;
+    while (retries > 0) {
+      try {
+        await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+        break;
+      } catch (navError) {
+        retries--;
+        if (retries === 0) {
+          console.warn(`Navigation warning for ${url}:`, navError.message);
+          // Try one more time with domcontentloaded
+          try {
+            await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+          } catch (e) {
+            // Continue anyway - page might have partially loaded
+          }
+        }
+        await page.waitForTimeout(1000);
+      }
     }
     
-    // Check if page has content
-    const bodyContent = await page.evaluate(() => document.body?.innerHTML?.length || 0);
+    // Wait for page to stabilize after any redirects
+    await page.waitForTimeout(3000);
+    
+    // Wait for network to be idle
+    try {
+      await page.waitForLoadState('networkidle', { timeout: 5000 });
+    } catch (e) {
+      // Continue if timeout
+    }
+    
+    // Check if page has content with retry
+    let bodyContent = 0;
+    for (let i = 0; i < 3; i++) {
+      try {
+        bodyContent = await page.evaluate(() => document.body?.innerHTML?.length || 0);
+        break;
+      } catch (e) {
+        if (e.message.includes('Execution context was destroyed')) {
+          // Page navigated, wait and retry
+          await page.waitForTimeout(2000);
+          continue;
+        }
+        throw e;
+      }
+    }
+    
     if (bodyContent < 100) {
       throw new Error('Page appears to be blocked or empty. The website may have bot protection.');
     }
@@ -57,13 +93,29 @@ async function inspect(url) {
     const screenshot = await page.screenshot({ fullPage: false, type: 'png' });
     const screenshotBase64 = screenshot.toString('base64');
     
-    // Extract visible text
-    const visibleText = await page.evaluate(() => {
+    // Helper function to safely evaluate with retry
+    const safeEvaluate = async (fn, defaultValue) => {
+      for (let i = 0; i < 3; i++) {
+        try {
+          return await page.evaluate(fn);
+        } catch (e) {
+          if (e.message.includes('Execution context was destroyed')) {
+            await page.waitForTimeout(1500);
+            continue;
+          }
+          throw e;
+        }
+      }
+      return defaultValue;
+    };
+    
+    // Extract visible text with retry
+    const visibleText = await safeEvaluate(() => {
       return document.body?.innerText?.substring(0, 2000) || '';
-    });
+    }, '');
     
     // Extract interactive elements with REAL selectors
-    const elements = await page.evaluate(() => {
+    const elements = await safeEvaluate(() => {
       const interactiveSelectors = 'input, button, select, textarea, a[href], [role="button"]';
       const els = document.querySelectorAll(interactiveSelectors);
       
@@ -146,10 +198,10 @@ async function inspect(url) {
         if (tag === 'a') return 'link';
         return 'interactive';
       }
-    });
+    }, []);
     
     // Detect page type based on elements
-    const pageType = detectPageType(elements, visibleText);
+    const pageType = detectPageType(elements || [], visibleText);
     
     return {
       url,
