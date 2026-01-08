@@ -1240,9 +1240,13 @@ function App() {
                           className="step-target"
                         >
                           <option value="">Select element...</option>
+                          {/* Show current selector if it's a custom/real selector not in elements list */}
+                          {step.target && !elements.find(el => el.id === step.target || el.selector === step.target) && (
+                            <option value={step.target}>{step.target}</option>
+                          )}
                           {elements.map(el => (
-                            <option key={el.id} value={el.id}>
-                              {el.id}: {el.role || el.tagName} {el.visibleText ? `"${el.visibleText.substring(0,15)}"` : ''} {el.placeholder ? `[${el.placeholder}]` : ''}
+                            <option key={el.id} value={el.selector || el.id}>
+                              {el.selector || el.id}: {el.role || el.tagName} {el.visibleText ? `"${el.visibleText.substring(0,15)}"` : ''} {el.placeholder ? `[${el.placeholder}]` : ''}
                             </option>
                           ))}
                         </select>
