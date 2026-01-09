@@ -1,7 +1,38 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import { auth, signInWithGoogle, logOut, onAuthStateChanged } from './firebase';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
+
+// Error Boundary to catch React errors
+class ErrorBoundary extends Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error, errorInfo) {
+    console.error('React Error:', error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '40px', textAlign: 'center' }}>
+          <h1>Something went wrong</h1>
+          <p>{this.state.error?.message || 'Unknown error'}</p>
+          <button onClick={() => window.location.reload()} style={{ padding: '10px 20px', marginTop: '20px' }}>
+            Reload Page
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 function App() {
   const [url, setUrl] = useState('');
@@ -1148,8 +1179,8 @@ function App() {
           <div className="editor">
             <div className="editor-header">
               <div>
-                <h1>{new URL(currentRun.url).hostname}</h1>
-                <p className="subtitle">{currentRun.url}</p>
+                <h1>{currentRun.url ? (() => { try { return new URL(currentRun.url).hostname; } catch { return currentRun.url; } })() : 'Unknown'}</h1>
+                <p className="subtitle">{currentRun.url || 'No URL'}</p>
               </div>
               <div className="editor-actions">
                 {currentRun.shareId ? (
@@ -1192,15 +1223,24 @@ function App() {
             </div>
 
             <div className="editor-meta">
-              <span className={`status-badge ${getStatusClass(currentRun.status)}`}>
-                {currentRun.status.replace(/_/g, ' ')}
+              <span className={`status-badge ${getStatusClass(currentRun.status || 'pending')}`}>
+                {(currentRun.status || 'pending').replace(/_/g, ' ')}
               </span>
               <span className="meta-item">📄 {currentRun.pageData?.pageType || 'Unknown'} page</span>
-              <span className="meta-item">🧪 {currentRun.tests.length} tests</span>
+              <span className="meta-item">🧪 {currentRun.tests?.length || 0} tests</span>
               {currentRun.confidence && (
                 <span className="meta-item">🎯 {(currentRun.confidence * 100).toFixed(0)}% confidence</span>
               )}
             </div>
+
+            {loading && (
+              <div className="loading-overlay">
+                <div className="loading-content">
+                  <span className="spinner large"></span>
+                  <p>Running tests... This may take a minute.</p>
+                </div>
+              </div>
+            )}
 
             <div className="test-list">
               {(currentRun.tests || []).length === 0 ? (
@@ -2091,4 +2131,12 @@ function App() {
   );
 }
 
-export default App;
+function AppWithErrorBoundary() {
+  return (
+    <ErrorBoundary>
+      <App />
+    </ErrorBoundary>
+  );
+}
+
+export default AppWithErrorBoundary;

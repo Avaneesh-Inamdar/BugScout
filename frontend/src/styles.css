@@ -1929,6 +1929,34 @@ h1 {
   border-width: 3px;
 }
 
+/* Loading Overlay */
+.loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.loading-content {
+  background: var(--card-bg);
+  padding: 40px 60px;
+  border-radius: 16px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+}
+
+.loading-content p {
+  margin-top: 20px;
+  font-size: 16px;
+  color: var(--text-secondary);
+}
+
 .error-icon {
   font-size: 64px;
   margin-bottom: 16px;
