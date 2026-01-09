@@ -28,8 +28,8 @@ Return ONLY valid JSON with this structure:
 }
 
 Rules:
-- Always generate 3 test cases
-- At least 2 must be negative
+- Generate exactly 2 test cases (to save server resources)
+- At least 1 must be negative
 - CRITICAL: Use the actual CSS selectors from the input elements, not internal IDs like e0, e1, e2
 - If an element has selector "input[type=password]", use that exact string as the target
 - No explanations, only JSON

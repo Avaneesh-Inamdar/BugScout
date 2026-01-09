@@ -2,54 +2,75 @@ const { chromium } = require('playwright');
 const storageService = require('./storageService');
 const bugExplainer = require('./bugExplainer');
 
+// Reuse browser instance to save memory
+let browserInstance = null;
+
+async function getBrowser() {
+  if (!browserInstance) {
+    browserInstance = await chromium.launch({
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-gpu',
+        '--single-process',
+        '--no-zygote',
+        '--disable-extensions',
+        '--disable-background-networking',
+        '--disable-default-apps',
+        '--disable-sync',
+        '--disable-translate',
+        '--hide-scrollbars',
+        '--mute-audio',
+        '--no-first-run',
+        '--disable-web-security',
+        '--disable-features=IsolateOrigins,site-per-process',
+        '--js-flags=--max-old-space-size=128',
+        '--renderer-process-limit=1',
+        '--disable-software-rasterizer'
+      ]
+    });
+  }
+  return browserInstance;
+}
+
+async function closeBrowser() {
+  if (browserInstance) {
+    await browserInstance.close();
+    browserInstance = null;
+  }
+}
+
 async function execute(testRun) {
-  const browser = await chromium.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--single-process',
-      '--no-zygote',
-      '--disable-extensions',
-      // Memory optimization flags
-      '--disable-background-networking',
-      '--disable-default-apps',
-      '--disable-sync',
-      '--disable-translate',
-      '--hide-scrollbars',
-      '--metrics-recording-only',
-      '--mute-audio',
-      '--no-first-run',
-      '--safebrowsing-disable-auto-update',
-      '--js-flags=--max-old-space-size=256'
-    ]
-  });
-  
-  // Build element ID -> selector map from pageData
+  const browser = await getBrowser();
   const elementMap = buildElementMap(testRun.pageData?.elements || []);
-  
   const results = [];
   
   try {
-    // Execute tests sequentially, reusing browser context to save memory
-    for (const test of testRun.tests) {
+    // Run only first 2 tests to save memory
+    const testsToRun = testRun.tests.slice(0, 2);
+    
+    for (const test of testsToRun) {
       const result = await executeTest(browser, testRun.url, test, testRun.id, elementMap);
       
-      // If test failed, get AI explanation
       if (result.status === 'fail') {
-        console.log(`[${testRun.id}] Getting AI explanation for failed test: ${test.name}`);
-        result.explanation = await bugExplainer.explainFailure(result, testRun.pageData);
+        try {
+          result.explanation = await bugExplainer.explainFailure(result, testRun.pageData);
+        } catch (e) {
+          console.log('Skipping AI explanation to save memory');
+        }
       }
       
       results.push(result);
-      
-      // Force garbage collection hint between tests
-      if (global.gc) global.gc();
+    }
+    
+    // Mark remaining tests as skipped
+    for (let i = 2; i < testRun.tests.length; i++) {
+      results.push({ ...testRun.tests[i], status: 'skipped', error: 'Skipped to save memory' });
     }
   } finally {
-    await browser.close();
+    await closeBrowser();
   }
   
   return results;
@@ -80,20 +101,18 @@ function resolveSelector(target, elementMap) {
 
 async function executeTest(browser, url, test, runId, elementMap) {
   const context = await browser.newContext({ 
-    viewport: { width: 1280, height: 720 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    // Reduce memory usage
+    viewport: { width: 800, height: 600 },  // Smaller viewport
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0.0.0',
     bypassCSP: true,
     javaScriptEnabled: true
   });
   
   const page = await context.newPage();
   
-  // Block unnecessary resources to save memory
+  // Block ALL unnecessary resources
   await page.route('**/*', (route) => {
-    const resourceType = route.request().resourceType();
-    // Block images, fonts, media to save memory
-    if (['image', 'font', 'media'].includes(resourceType)) {
+    const type = route.request().resourceType();
+    if (['image', 'font', 'media', 'stylesheet', 'other'].includes(type)) {
       route.abort();
     } else {
       route.continue();
@@ -103,50 +122,22 @@ async function executeTest(browser, url, test, runId, elementMap) {
   const screenshots = [];
 
   try {
-    // Navigate with retry logic
-    let navSuccess = false;
-    for (let attempt = 0; attempt < 2; attempt++) {
-      try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
-        navSuccess = true;
-        break;
-      } catch (e) {
-        console.log(`Navigation attempt ${attempt + 1} failed: ${e.message}`);
-        if (attempt === 1) throw e;
-        await page.waitForTimeout(1000);
-      }
-    }
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.waitForTimeout(1000);
     
-    // Wait for page to stabilize (shorter wait)
-    await page.waitForTimeout(1500);
+    // Skip before screenshot to save memory
     
-    // Before screenshot (smaller, compressed)
-    const beforeShot = await captureScreenshot(page, runId, test.id, 'before');
-    screenshots.push(beforeShot);
-    
-    // Execute steps with selector resolution
     for (const step of test.steps) {
       await executeStep(page, step, elementMap);
-      await page.waitForTimeout(300);
+      await page.waitForTimeout(200);
     }
     
-    // Wait a bit for any page changes
-    await page.waitForTimeout(500);
-    
-    // After screenshot
-    const afterShot = await captureScreenshot(page, runId, test.id, 'after');
-    screenshots.push(afterShot);
+    // Only capture one small screenshot
+    const shot = await captureScreenshot(page, runId, test.id, 'result');
+    screenshots.push(shot);
     
     return { ...test, status: 'pass', screenshots, error: null };
   } catch (error) {
-    console.error(`Test "${test.name}" failed:`, error.message);
-    let errorShot = null;
-    try {
-      errorShot = await captureScreenshot(page, runId, test.id, 'error');
-      screenshots.push(errorShot);
-    } catch (e) {
-      console.error('Failed to capture error screenshot:', e.message);
-    }
     return { ...test, status: 'fail', screenshots, error: error.message };
   } finally {
     await page.close();
@@ -251,11 +242,12 @@ async function executeStep(page, step, elementMap) {
 }
 
 async function captureScreenshot(page, runId, testId, stage) {
-  // Use JPEG with quality reduction to save memory and storage
+  // Tiny screenshot to save memory
   const screenshot = await page.screenshot({ 
     type: 'jpeg',
-    quality: 60,
-    fullPage: false
+    quality: 30,
+    fullPage: false,
+    clip: { x: 0, y: 0, width: 800, height: 400 }
   });
   const filename = `${runId}/${testId}_${stage}_${Date.now()}.jpg`;
   const url = await storageService.uploadScreenshot(filename, screenshot);
