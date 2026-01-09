@@ -46,7 +46,7 @@ function App() {
     },
     {
       question: "Can I edit the auto-generated tests?",
-      answer: "Yes! All generated tests are fully editable. You can modify test steps, change selectors, add new tests, or remove unnecessary ones before execution. You can also record your own test flows using the Flow Recorder."
+      answer: "Yes! All generated tests are fully editable. You can modify test steps, change selectors, add new tests, or remove unnecessary ones before execution."
     },
     {
       question: "What do the accessibility scores mean?",
@@ -753,12 +753,6 @@ function App() {
                 onClick={() => setActiveTab('performance')}
               >
                 ⚡ Performance
-              </button>
-              <button 
-                className={`nav-tab ${activeTab === 'recorder' ? 'active' : ''}`}
-                onClick={() => setActiveTab('recorder')}
-              >
-                🎬 Recorder
               </button>
               <button 
                 className={`nav-tab ${activeTab === 'guide' ? 'active' : ''}`}
@@ -1735,107 +1729,6 @@ function App() {
         </main>
       )}
 
-      {/* Recorder Tab */}
-      {activeTab === 'recorder' && (
-        <main className="main-content">
-          <div className="recorder-page">
-            <h1>🎬 Flow Recorder</h1>
-            <p className="subtitle">Record your interactions and replay them as automated tests</p>
-
-            {!recordingSession ? (
-              <div className="card">
-                <label className="input-label">Start URL</label>
-                <div className="input-group-large">
-                  <input
-                    type="url"
-                    placeholder="https://example.com/login"
-                    value={url}
-                    onChange={(e) => setUrl(e.target.value)}
-                    onKeyPress={(e) => e.key === 'Enter' && startRecording()}
-                  />
-                  <button 
-                    className="btn btn-primary btn-large"
-                    onClick={startRecording}
-                    disabled={recordingLoading || !url}
-                  >
-                    {recordingLoading ? <><span className="spinner"></span> Starting...</> : '⏺️ Start Recording'}
-                  </button>
-                </div>
-                <p className="input-hint">A browser window will open. Interact with the page, then come back here to stop recording.</p>
-              </div>
-            ) : (
-              <div className="recording-active">
-                <div className="recording-status-card">
-                  <div className="recording-indicator">
-                    <span className="recording-dot"></span>
-                    <span>Recording in progress...</span>
-                  </div>
-                  <div className="recording-url">{recordingSession.url}</div>
-                  <div className="recording-stats">
-                    <span className="stat">📝 {recordingSession.stepCount || 0} steps recorded</span>
-                    <span className="stat">⏱️ Started {new Date(recordingSession.startedAt).toLocaleTimeString()}</span>
-                  </div>
-                </div>
-
-                <div className="card">
-                  <label className="input-label">Flow Name</label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Login Flow, Checkout Process"
-                    value={flowName}
-                    onChange={(e) => setFlowName(e.target.value)}
-                    className="flow-name-input"
-                  />
-                </div>
-
-                {recordingSession.steps?.length > 0 && (
-                  <div className="card">
-                    <h3>Recorded Steps</h3>
-                    <div className="recorded-steps-list">
-                      {recordingSession.steps.map((step, idx) => (
-                        <div key={idx} className="recorded-step">
-                          <span className="step-num">{idx + 1}</span>
-                          <span className={`step-action-badge ${step.action}`}>{step.action}</span>
-                          <span className="step-selector">{step.selector}</span>
-                          {step.value && <span className="step-value">"{step.value}"</span>}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                <div className="recording-actions">
-                  <button 
-                    className="btn btn-success btn-large"
-                    onClick={stopRecording}
-                    disabled={recordingLoading}
-                  >
-                    {recordingLoading ? <><span className="spinner"></span> Saving...</> : '⏹️ Stop & Save'}
-                  </button>
-                  <button 
-                    className="btn btn-outline"
-                    onClick={cancelRecording}
-                    disabled={recordingLoading}
-                  >
-                    ❌ Cancel
-                  </button>
-                </div>
-              </div>
-            )}
-
-            <div className="recorder-tips">
-              <h3>💡 Tips for Recording</h3>
-              <ul>
-                <li>Click through your user flow naturally - clicks, typing, and form submissions are captured</li>
-                <li>Wait for pages to load before interacting with elements</li>
-                <li>Use unique identifiers (IDs, data-testid) on elements for more reliable playback</li>
-                <li>After saving, you can edit the recorded steps in the Editor tab</li>
-              </ul>
-            </div>
-          </div>
-        </main>
-      )}
-
       {/* Guide Tab */}
       {activeTab === 'guide' && (
         <main className="main-content">
@@ -2050,39 +1943,6 @@ function App() {
                         <li>JavaScript, CSS, image sizes</li>
                         <li>Third-party resource impact</li>
                       </ul>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Flow Recorder */}
-              <div className="guide-section">
-                <div className="guide-section-header">
-                  <span className="guide-section-icon">🎬</span>
-                  <h2>Flow Recorder</h2>
-                </div>
-                <div className="guide-section-content">
-                  <p className="guide-intro">Record your interactions and convert them into automated tests.</p>
-                  
-                  <div className="guide-step">
-                    <div className="guide-step-number">1</div>
-                    <div className="guide-step-content">
-                      <h3>Start Recording</h3>
-                      <p>Enter a URL and click "Start Recording". A browser window will open where you can interact with the page.</p>
-                    </div>
-                  </div>
-                  <div className="guide-step">
-                    <div className="guide-step-number">2</div>
-                    <div className="guide-step-content">
-                      <h3>Perform Actions</h3>
-                      <p>Click buttons, fill forms, navigate pages - all your interactions are captured automatically. The step count updates in real-time.</p>
-                    </div>
-                  </div>
-                  <div className="guide-step">
-                    <div className="guide-step-number">3</div>
-                    <div className="guide-step-content">
-                      <h3>Save & Edit</h3>
-                      <p>Click "Stop & Save" to convert your recording into a test. You can then edit the steps in the Editor tab before running.</p>
                     </div>
                   </div>
                 </div>
