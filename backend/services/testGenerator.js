@@ -1,4 +1,4 @@
-const Groq = require('groq-sdk');
+const apiKeyManager = require('./apiKeyManager');
 
 const GROQ_PROMPT = `You are an instruction-following system.
 Given UI element metadata and page text, generate a QA test plan.

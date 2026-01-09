@@ -110,6 +110,9 @@ app.put('/api/test-runs/:id', async (req, res) => {
 
 // Execute tests
 app.post('/api/test-runs/:id/execute', async (req, res) => {
+  const timeoutMs = 120000; // 2 minute timeout
+  let timeoutId;
+  
   try {
     const testRun = await firestoreService.getTestRun(req.params.id);
     if (!testRun) {
@@ -119,7 +122,21 @@ app.post('/api/test-runs/:id/execute', async (req, res) => {
     await firestoreService.updateTestRun(req.params.id, { status: 'running' });
     
     console.log(`[${req.params.id}] Executing tests...`);
-    const results = await testExecutor.execute(testRun);
+    
+    // Create a timeout promise
+    const timeoutPromise = new Promise((_, reject) => {
+      timeoutId = setTimeout(() => {
+        reject(new Error('Test execution timed out after 2 minutes'));
+      }, timeoutMs);
+    });
+    
+    // Race between execution and timeout
+    const results = await Promise.race([
+      testExecutor.execute(testRun),
+      timeoutPromise
+    ]);
+    
+    clearTimeout(timeoutId);
     
     const finalStatus = results.every(t => t.status === 'pass') ? 'completed' : 'completed_with_failures';
     
@@ -132,6 +149,7 @@ app.post('/api/test-runs/:id/execute', async (req, res) => {
     const updated = await firestoreService.getTestRun(req.params.id);
     res.json(updated);
   } catch (error) {
+    clearTimeout(timeoutId);
     console.error('Execute tests error:', error);
     await firestoreService.updateTestRun(req.params.id, { status: 'error', error: error.message });
     res.status(500).json({ error: error.message });

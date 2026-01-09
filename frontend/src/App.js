@@ -153,10 +153,25 @@ function App() {
         method: 'POST'
       });
       const data = await res.json();
-      setCurrentRun(data);
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      // Validate response has required fields
+      if (data && data.id && data.tests) {
+        setCurrentRun(data);
+      } else {
+        throw new Error('Invalid response from server');
+      }
       if (user) fetchTestRuns(user.uid);
     } catch (err) {
+      console.error('Test execution error:', err);
       alert('Failed to execute tests: ' + err.message);
+      // Reload the test run to get current state
+      try {
+        const res = await fetch(`${API_URL}/api/test-runs/${currentRun.id}`);
+        const data = await res.json();
+        if (data && data.id && !data.error) setCurrentRun(data);
+      } catch (e) { /* ignore */ }
     } finally {
       setLoading(false);
     }

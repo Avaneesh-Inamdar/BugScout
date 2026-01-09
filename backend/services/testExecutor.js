@@ -64,12 +64,30 @@ function resolveSelector(target, elementMap) {
 }
 
 async function executeTest(browser, url, test, runId, elementMap) {
-  const context = await browser.newContext({ viewport: { width: 1280, height: 720 } });
+  const context = await browser.newContext({ 
+    viewport: { width: 1280, height: 720 },
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+  });
   const page = await context.newPage();
   const screenshots = [];
 
   try {
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    // Navigate with retry logic
+    let navSuccess = false;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        navSuccess = true;
+        break;
+      } catch (e) {
+        console.log(`Navigation attempt ${attempt + 1} failed: ${e.message}`);
+        if (attempt === 2) throw e;
+        await page.waitForTimeout(1000);
+      }
+    }
+    
+    // Wait for page to stabilize
+    await page.waitForTimeout(2000);
     
     // Before screenshot
     const beforeShot = await captureScreenshot(page, runId, test.id, 'before');
@@ -81,14 +99,23 @@ async function executeTest(browser, url, test, runId, elementMap) {
       await page.waitForTimeout(500);
     }
     
+    // Wait a bit for any page changes
+    await page.waitForTimeout(1000);
+    
     // After screenshot
     const afterShot = await captureScreenshot(page, runId, test.id, 'after');
     screenshots.push(afterShot);
     
     return { ...test, status: 'pass', screenshots, error: null };
   } catch (error) {
-    const errorShot = await captureScreenshot(page, runId, test.id, 'error');
-    screenshots.push(errorShot);
+    console.error(`Test "${test.name}" failed:`, error.message);
+    let errorShot = null;
+    try {
+      errorShot = await captureScreenshot(page, runId, test.id, 'error');
+      screenshots.push(errorShot);
+    } catch (e) {
+      console.error('Failed to capture error screenshot:', e.message);
+    }
     return { ...test, status: 'fail', screenshots, error: error.message };
   } finally {
     await context.close();
