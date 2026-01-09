@@ -13,7 +13,17 @@ async function inspect(url) {
       '--single-process',
       '--no-zygote',
       '--disable-extensions',
-      '--window-size=1280,720'
+      '--window-size=1280,720',
+      // Memory optimization
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--hide-scrollbars',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--no-first-run',
+      '--js-flags=--max-old-space-size=256'
     ]
   });
   
@@ -89,8 +99,8 @@ async function inspect(url) {
       throw new Error('Page appears to be blocked or empty. The website may have bot protection.');
     }
     
-    // Capture full-page screenshot
-    const screenshot = await page.screenshot({ fullPage: false, type: 'png' });
+    // Capture screenshot (JPEG for smaller size)
+    const screenshot = await page.screenshot({ fullPage: false, type: 'jpeg', quality: 60 });
     const screenshotBase64 = screenshot.toString('base64');
     
     // Helper function to safely evaluate with retry

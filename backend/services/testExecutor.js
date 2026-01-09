@@ -12,7 +12,18 @@ async function execute(testRun) {
       '--disable-gpu',
       '--single-process',
       '--no-zygote',
-      '--disable-extensions'
+      '--disable-extensions',
+      // Memory optimization flags
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--hide-scrollbars',
+      '--metrics-recording-only',
+      '--mute-audio',
+      '--no-first-run',
+      '--safebrowsing-disable-auto-update',
+      '--js-flags=--max-old-space-size=256'
     ]
   });
   
@@ -22,6 +33,7 @@ async function execute(testRun) {
   const results = [];
   
   try {
+    // Execute tests sequentially, reusing browser context to save memory
     for (const test of testRun.tests) {
       const result = await executeTest(browser, testRun.url, test, testRun.id, elementMap);
       
@@ -32,6 +44,9 @@ async function execute(testRun) {
       }
       
       results.push(result);
+      
+      // Force garbage collection hint between tests
+      if (global.gc) global.gc();
     }
   } finally {
     await browser.close();
@@ -66,41 +81,57 @@ function resolveSelector(target, elementMap) {
 async function executeTest(browser, url, test, runId, elementMap) {
   const context = await browser.newContext({ 
     viewport: { width: 1280, height: 720 },
-    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+    userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+    // Reduce memory usage
+    bypassCSP: true,
+    javaScriptEnabled: true
   });
+  
   const page = await context.newPage();
+  
+  // Block unnecessary resources to save memory
+  await page.route('**/*', (route) => {
+    const resourceType = route.request().resourceType();
+    // Block images, fonts, media to save memory
+    if (['image', 'font', 'media'].includes(resourceType)) {
+      route.abort();
+    } else {
+      route.continue();
+    }
+  });
+  
   const screenshots = [];
 
   try {
     // Navigate with retry logic
     let navSuccess = false;
-    for (let attempt = 0; attempt < 3; attempt++) {
+    for (let attempt = 0; attempt < 2; attempt++) {
       try {
-        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+        await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
         navSuccess = true;
         break;
       } catch (e) {
         console.log(`Navigation attempt ${attempt + 1} failed: ${e.message}`);
-        if (attempt === 2) throw e;
+        if (attempt === 1) throw e;
         await page.waitForTimeout(1000);
       }
     }
     
-    // Wait for page to stabilize
-    await page.waitForTimeout(2000);
+    // Wait for page to stabilize (shorter wait)
+    await page.waitForTimeout(1500);
     
-    // Before screenshot
+    // Before screenshot (smaller, compressed)
     const beforeShot = await captureScreenshot(page, runId, test.id, 'before');
     screenshots.push(beforeShot);
     
     // Execute steps with selector resolution
     for (const step of test.steps) {
       await executeStep(page, step, elementMap);
-      await page.waitForTimeout(500);
+      await page.waitForTimeout(300);
     }
     
     // Wait a bit for any page changes
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(500);
     
     // After screenshot
     const afterShot = await captureScreenshot(page, runId, test.id, 'after');
@@ -118,6 +149,7 @@ async function executeTest(browser, url, test, runId, elementMap) {
     }
     return { ...test, status: 'fail', screenshots, error: error.message };
   } finally {
+    await page.close();
     await context.close();
   }
 }
@@ -219,8 +251,13 @@ async function executeStep(page, step, elementMap) {
 }
 
 async function captureScreenshot(page, runId, testId, stage) {
-  const screenshot = await page.screenshot({ type: 'png' });
-  const filename = `${runId}/${testId}_${stage}_${Date.now()}.png`;
+  // Use JPEG with quality reduction to save memory and storage
+  const screenshot = await page.screenshot({ 
+    type: 'jpeg',
+    quality: 60,
+    fullPage: false
+  });
+  const filename = `${runId}/${testId}_${stage}_${Date.now()}.jpg`;
   const url = await storageService.uploadScreenshot(filename, screenshot);
   return url;
 }

@@ -179,10 +179,27 @@ function App() {
     if (!currentRun) return;
     setLoading(true);
     try {
+      // First, ping the server to wake it up if sleeping
+      try {
+        await fetch(`${API_URL}/health`, { method: 'GET' });
+      } catch (e) {
+        // Server might be waking up, wait a bit
+        await new Promise(r => setTimeout(r, 3000));
+      }
+      
       await saveChanges();
+      
+      // Use AbortController for timeout (3 minutes for test execution)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 180000);
+      
       const res = await fetch(`${API_URL}/api/test-runs/${currentRun.id}/execute`, {
-        method: 'POST'
+        method: 'POST',
+        signal: controller.signal
       });
+      
+      clearTimeout(timeoutId);
+      
       const data = await res.json();
       if (data.error) {
         throw new Error(data.error);
@@ -196,7 +213,13 @@ function App() {
       if (user) fetchTestRuns(user.uid);
     } catch (err) {
       console.error('Test execution error:', err);
-      alert('Failed to execute tests: ' + err.message);
+      let errorMsg = err.message;
+      if (err.name === 'AbortError') {
+        errorMsg = 'Request timed out. The server may be busy or sleeping. Please try again in a moment.';
+      } else if (err.message.includes('NetworkError') || err.message.includes('fetch')) {
+        errorMsg = 'Network error. The server may be waking up (free tier). Please wait 30 seconds and try again.';
+      }
+      alert('Failed to execute tests: ' + errorMsg);
       // Reload the test run to get current state
       try {
         const res = await fetch(`${API_URL}/api/test-runs/${currentRun.id}`);

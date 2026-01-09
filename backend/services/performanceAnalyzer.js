@@ -13,7 +13,16 @@ async function analyze(url) {
       '--disable-gpu',
       '--single-process',
       '--no-zygote',
-      '--disable-extensions'
+      '--disable-extensions',
+      // Memory optimization
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--hide-scrollbars',
+      '--mute-audio',
+      '--no-first-run',
+      '--js-flags=--max-old-space-size=256'
     ]
   });
 

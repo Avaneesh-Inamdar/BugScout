@@ -92,7 +92,16 @@ async function audit(url) {
       '--disable-gpu',
       '--single-process',
       '--no-zygote',
-      '--disable-extensions'
+      '--disable-extensions',
+      // Memory optimization
+      '--disable-background-networking',
+      '--disable-default-apps',
+      '--disable-sync',
+      '--disable-translate',
+      '--hide-scrollbars',
+      '--mute-audio',
+      '--no-first-run',
+      '--js-flags=--max-old-space-size=256'
     ]
   });
 
@@ -107,7 +116,7 @@ async function audit(url) {
 
   try {
     const page = await browser.newPage();
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
 
     // Run each check
     for (const [key, check] of Object.entries(CHECKS)) {
