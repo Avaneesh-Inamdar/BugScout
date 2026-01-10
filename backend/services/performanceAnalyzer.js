@@ -43,8 +43,10 @@ async function analyze(url) {
     await page.coverage.startJSCoverage();
     await page.coverage.startCSSCoverage();
 
-    // Track network requests
+    // Track network requests with better size tracking
     const requests = [];
+    const responseData = new Map();
+    
     page.on('request', req => {
       requests.push({
         url: req.url(),
@@ -53,13 +55,26 @@ async function analyze(url) {
       });
     });
 
-    page.on('response', res => {
+    page.on('response', async res => {
       const req = requests.find(r => r.url === res.url());
       if (req) {
         req.status = res.status();
-        req.size = parseInt(res.headers()['content-length'] || '0');
         req.endTime = Date.now();
         req.duration = req.endTime - req.startTime;
+        
+        // Try to get actual size from headers or body
+        const contentLength = res.headers()['content-length'];
+        if (contentLength) {
+          req.size = parseInt(contentLength);
+        } else {
+          // For responses without content-length, try to get body size
+          try {
+            const body = await res.body().catch(() => null);
+            req.size = body ? body.length : 0;
+          } catch {
+            req.size = 0;
+          }
+        }
       }
     });
 
@@ -73,85 +88,121 @@ async function analyze(url) {
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
     const networkIdleTime = Date.now() - startTime;
 
-    // For dynamic sites, wait a bit more for content to render
-    await page.waitForTimeout(2000);
+    // For dynamic sites/SPAs, wait for content to render
+    await page.waitForTimeout(2500);
 
-    // Get performance timing from browser with better LCP capture for dynamic sites
+    // Get performance timing using modern Navigation Timing API (Level 2)
     const performanceTiming = await page.evaluate(() => {
       return new Promise((resolve) => {
-        const timing = performance.timing;
-        const paint = performance.getEntriesByType('paint');
-        let lcpValue = 0;
+        // Use modern PerformanceNavigationTiming API
+        const navEntries = performance.getEntriesByType('navigation');
+        const navTiming = navEntries.length > 0 ? navEntries[0] : null;
         
-        // Get existing LCP entries
+        // Fallback to deprecated timing API
+        const legacyTiming = performance.timing;
+        
+        // Get paint entries
+        const paint = performance.getEntriesByType('paint');
+        const fcp = paint.find(p => p.name === 'first-contentful-paint')?.startTime || 0;
+        const fp = paint.find(p => p.name === 'first-paint')?.startTime || 0;
+        
+        let lcpValue = 0;
+        let clsValue = 0;
+        
+        // Get existing LCP entries (buffered)
         const existingLcp = performance.getEntriesByType('largest-contentful-paint');
         if (existingLcp.length > 0) {
           lcpValue = existingLcp[existingLcp.length - 1].startTime;
         }
-
-        // Set up observer for any new LCP entries (for dynamic content)
-        const lcpObserver = new PerformanceObserver((list) => {
-          const entries = list.getEntries();
-          if (entries.length > 0) {
-            lcpValue = entries[entries.length - 1].startTime;
-          }
-        });
         
-        try {
-          lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
-        } catch (e) {
-          // LCP observer not supported
+        // Get existing CLS entries (buffered)
+        const layoutShifts = performance.getEntriesByType('layout-shift');
+        for (const entry of layoutShifts) {
+          if (!entry.hadRecentInput) {
+            clsValue += entry.value;
+          }
         }
 
-        // Wait a short time to capture any pending LCP updates
+        // Set up observers for any new entries
+        let lcpObserver, clsObserver;
+        
+        try {
+          lcpObserver = new PerformanceObserver((list) => {
+            const entries = list.getEntries();
+            if (entries.length > 0) {
+              lcpValue = Math.max(lcpValue, entries[entries.length - 1].startTime);
+            }
+          });
+          lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+        } catch (e) {}
+        
+        try {
+          clsObserver = new PerformanceObserver((list) => {
+            for (const entry of list.getEntries()) {
+              if (!entry.hadRecentInput) {
+                clsValue += entry.value;
+              }
+            }
+          });
+          clsObserver.observe({ type: 'layout-shift', buffered: true });
+        } catch (e) {}
+
+        // Wait to capture metrics
         setTimeout(() => {
-          lcpObserver.disconnect();
+          if (lcpObserver) lcpObserver.disconnect();
+          if (clsObserver) clsObserver.disconnect();
           
-          // Fallback: if no LCP, estimate from DOM content
-          if (lcpValue === 0) {
-            // Use FCP as fallback, or estimate from domContentLoaded
-            const fcp = paint.find(p => p.name === 'first-contentful-paint')?.startTime || 0;
-            lcpValue = fcp > 0 ? fcp * 1.2 : (timing.domContentLoadedEventEnd - timing.navigationStart);
+          // Calculate timing values using modern API with fallback
+          let ttfb, domContentLoaded, dns, tcp, download, domParsing;
+          
+          if (navTiming) {
+            // Modern Navigation Timing API (Level 2)
+            ttfb = navTiming.responseStart - navTiming.requestStart;
+            domContentLoaded = navTiming.domContentLoadedEventEnd;
+            dns = navTiming.domainLookupEnd - navTiming.domainLookupStart;
+            tcp = navTiming.connectEnd - navTiming.connectStart;
+            download = navTiming.responseEnd - navTiming.responseStart;
+            domParsing = navTiming.domInteractive - navTiming.responseEnd;
+          } else {
+            // Fallback to legacy timing API
+            const navStart = legacyTiming.navigationStart;
+            ttfb = legacyTiming.responseStart - legacyTiming.requestStart;
+            domContentLoaded = legacyTiming.domContentLoadedEventEnd - navStart;
+            dns = legacyTiming.domainLookupEnd - legacyTiming.domainLookupStart;
+            tcp = legacyTiming.connectEnd - legacyTiming.connectStart;
+            download = legacyTiming.responseEnd - legacyTiming.responseStart;
+            domParsing = legacyTiming.domInteractive - legacyTiming.responseEnd;
           }
           
+          // Fallback for LCP if not captured
+          if (lcpValue === 0 || lcpValue < 0) {
+            // Estimate LCP from FCP or DOM timing
+            if (fcp > 0) {
+              lcpValue = fcp * 1.3; // LCP typically ~30% after FCP
+            } else if (domContentLoaded > 0) {
+              lcpValue = domContentLoaded * 0.8;
+            }
+          }
+          
+          // Ensure positive values
           resolve({
-            // Navigation timing
-            dns: timing.domainLookupEnd - timing.domainLookupStart,
-            tcp: timing.connectEnd - timing.connectStart,
-            ttfb: timing.responseStart - timing.requestStart,
-            download: timing.responseEnd - timing.responseStart,
-            domParsing: timing.domInteractive - timing.responseEnd,
-            domContentLoaded: timing.domContentLoadedEventEnd - timing.navigationStart,
-            
-            // Paint timing
-            firstPaint: paint.find(p => p.name === 'first-paint')?.startTime || 0,
-            firstContentfulPaint: paint.find(p => p.name === 'first-contentful-paint')?.startTime || 0,
-            
-            // LCP with fallback
-            largestContentfulPaint: lcpValue
+            dns: Math.max(0, dns || 0),
+            tcp: Math.max(0, tcp || 0),
+            ttfb: Math.max(0, ttfb || 0),
+            download: Math.max(0, download || 0),
+            domParsing: Math.max(0, domParsing || 0),
+            domContentLoaded: Math.max(0, domContentLoaded || 0),
+            firstPaint: Math.max(0, fp || 0),
+            firstContentfulPaint: Math.max(0, fcp || 0),
+            largestContentfulPaint: Math.max(0, lcpValue || 0),
+            cumulativeLayoutShift: Math.max(0, clsValue || 0)
           });
-        }, 500);
+        }, 1000);
       });
     });
 
-    // Get CLS (Cumulative Layout Shift)
-    const cls = await page.evaluate(() => {
-      return new Promise(resolve => {
-        let clsValue = 0;
-        const observer = new PerformanceObserver(list => {
-          for (const entry of list.getEntries()) {
-            if (!entry.hadRecentInput) {
-              clsValue += entry.value;
-            }
-          }
-        });
-        observer.observe({ type: 'layout-shift', buffered: true });
-        setTimeout(() => {
-          observer.disconnect();
-          resolve(clsValue);
-        }, 1000);
-      });
-    }).catch(() => 0);
+    // CLS is already captured in performanceTiming
+    const cls = performanceTiming.cumulativeLayoutShift;
 
     // Get coverage data
     const jsCoverage = await page.coverage.stopJSCoverage();

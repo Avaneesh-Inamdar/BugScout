@@ -1,4 +1,4 @@
-const Groq = require('groq-sdk');
+const apiKeyManager = require('./apiKeyManager');
 
 const EXPLAIN_PROMPT = `You are a QA expert analyzing a failed test. Given the test details and error, provide:
 
@@ -21,13 +21,11 @@ Test Details:
 `;
 
 async function explainFailure(test, pageContext) {
-  if (!process.env.GROQ_API_KEY) {
+  if (!apiKeyManager.hasKeys()) {
     return getFallbackExplanation(test);
   }
 
   try {
-    const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-    
     const testInfo = `
 Test Name: ${test.name}
 Test Type: ${test.type}
@@ -37,14 +35,16 @@ Error: ${test.error}
 Page Type: ${pageContext?.pageType || 'unknown'}
 `;
 
-    const response = await groq.chat.completions.create({
-      model: 'llama-3.3-70b-versatile',
-      messages: [
-        { role: 'system', content: EXPLAIN_PROMPT },
-        { role: 'user', content: testInfo }
-      ],
-      temperature: 0.3,
-      max_tokens: 500
+    const response = await apiKeyManager.executeWithFallback(async (groq) => {
+      return await groq.chat.completions.create({
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          { role: 'system', content: EXPLAIN_PROMPT },
+          { role: 'user', content: testInfo }
+        ],
+        temperature: 0.3,
+        max_tokens: 500
+      });
     });
 
     const content = response.choices[0]?.message?.content || '';

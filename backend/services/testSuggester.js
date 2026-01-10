@@ -1,4 +1,4 @@
-const Groq = require('groq-sdk');
+const apiKeyManager = require('./apiKeyManager');
 
 const SUGGEST_PROMPT = `You are a senior QA engineer. Analyze the page elements and suggest edge cases and test scenarios that developers often miss.
 
@@ -33,8 +33,8 @@ async function suggest(pageData) {
   const ruleBased = getRuleBasedSuggestions(pageData);
   suggestions.push(...ruleBased);
 
-  // Try AI suggestions
-  if (process.env.GROQ_API_KEY) {
+  // Try AI suggestions using apiKeyManager with fallback
+  if (apiKeyManager.hasKeys()) {
     try {
       const aiSuggestions = await getAISuggestions(pageData);
       suggestions.push(...aiSuggestions);
@@ -53,8 +53,6 @@ async function suggest(pageData) {
 }
 
 async function getAISuggestions(pageData) {
-  const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
-
   const pageInfo = `
 Page Type: ${pageData.pageType || 'unknown'}
 URL: ${pageData.url || 'N/A'}
@@ -64,14 +62,16 @@ ${pageData.elements?.slice(0, 15).map(el =>
 ).join('\n')}
 `;
 
-  const response = await groq.chat.completions.create({
-    model: 'llama-3.3-70b-versatile',
-    messages: [
-      { role: 'system', content: SUGGEST_PROMPT },
-      { role: 'user', content: pageInfo }
-    ],
-    temperature: 0.7,
-    max_tokens: 1000
+  const response = await apiKeyManager.executeWithFallback(async (groq) => {
+    return await groq.chat.completions.create({
+      model: 'llama-3.1-8b-instant',
+      messages: [
+        { role: 'system', content: SUGGEST_PROMPT },
+        { role: 'user', content: pageInfo }
+      ],
+      temperature: 0.7,
+      max_tokens: 1000
+    });
   });
 
   const content = response.choices[0]?.message?.content || '';
