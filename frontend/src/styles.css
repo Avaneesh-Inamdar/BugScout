@@ -397,6 +397,57 @@ h1 {
   color: var(--text-secondary);
 }
 
+/* Results Summary Banner */
+.results-summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 20px 24px;
+  border-radius: 12px;
+  margin-bottom: 20px;
+  animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.results-summary.success {
+  background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.results-summary.failure {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.results-icon {
+  font-size: 40px;
+  line-height: 1;
+}
+
+.results-info h3 {
+  margin: 0 0 4px 0;
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.results-summary.success .results-info h3 {
+  color: #10b981;
+}
+
+.results-summary.failure .results-info h3 {
+  color: #ef4444;
+}
+
+.results-info p {
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
 /* Test Cards */
 .test-list { display: flex; flex-direction: column; gap: 16px; }
 

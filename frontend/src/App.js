@@ -1265,6 +1265,29 @@ function App() {
               </div>
             )}
 
+            {/* Test Results Summary Banner */}
+            {!loading && currentRun.status && currentRun.status !== 'pending_review' && (
+              <div className={`results-summary ${currentRun.status === 'completed' ? 'success' : 'failure'}`}>
+                <div className="results-icon">
+                  {currentRun.status === 'completed' ? '✅' : '❌'}
+                </div>
+                <div className="results-info">
+                  <h3>
+                    {currentRun.status === 'completed' 
+                      ? 'All Tests Passed!' 
+                      : `${currentRun.tests?.filter(t => t.status === 'fail').length || 0} Test${currentRun.tests?.filter(t => t.status === 'fail').length !== 1 ? 's' : ''} Failed`}
+                  </h3>
+                  <p>
+                    {currentRun.tests?.filter(t => t.status === 'pass').length || 0} passed
+                    {currentRun.tests?.filter(t => t.status === 'fail').length > 0 && 
+                      ` · ${currentRun.tests?.filter(t => t.status === 'fail').length} failed`}
+                    {currentRun.tests?.filter(t => t.status === 'pending').length > 0 && 
+                      ` · ${currentRun.tests?.filter(t => t.status === 'pending').length} pending`}
+                  </p>
+                </div>
+              </div>
+            )}
+
             <div className="test-list">
               {(currentRun.tests || []).length === 0 ? (
                 <div className="empty-state">
