@@ -1,7 +1,7 @@
 import React, { useState, useEffect, Component } from 'react';
 import { auth, signInWithGoogle, logOut, onAuthStateChanged } from './firebase';
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
@@ -500,7 +500,7 @@ function App() {
             safeText(step.value, 25)
           ]);
           
-          doc.autoTable({
+          autoTable(doc, {
             startY: yPos,
             head: [['#', 'Action', 'Target', 'Value']],
             body: stepsData,
@@ -565,7 +565,7 @@ function App() {
             fs.status === 'pass' ? 'OK' : fs.status === 'fail' ? 'FAIL' : '-'
           ]);
           
-          doc.autoTable({
+          autoTable(doc, {
             startY: yPos,
             head: [['#', 'Action', 'Description', 'Status']],
             body: flowData,
