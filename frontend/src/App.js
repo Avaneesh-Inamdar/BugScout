@@ -1696,19 +1696,19 @@ function App() {
 
                 {/* Core Web Vitals */}
                 <div className="metrics-grid">
-                  <div className={`metric-card ${perfResults.coreWebVitals?.fcp?.rating || getMetricStatus('fcp', perfResults.metrics.fcp)}`}>
+                  <div className={`metric-card ${perfResults.coreWebVitals?.fcp?.rating || getMetricStatus('fcp', perfResults.metrics.fcp || 0)}`}>
                     <div className="metric-label">First Contentful Paint</div>
-                    <div className="metric-value">{perfResults.metrics.fcp >= 1000 ? (perfResults.metrics.fcp / 1000).toFixed(1) + 's' : perfResults.metrics.fcp + 'ms'}</div>
+                    <div className="metric-value">{perfResults.metrics.fcp ? (perfResults.metrics.fcp >= 1000 ? (perfResults.metrics.fcp / 1000).toFixed(1) + 's' : perfResults.metrics.fcp + 'ms') : 'N/A'}</div>
                     <div className="metric-target">Target: &lt;1.8s</div>
                   </div>
-                  <div className={`metric-card ${perfResults.coreWebVitals?.lcp?.rating || getMetricStatus('lcp', perfResults.metrics.lcp)}`}>
+                  <div className={`metric-card ${perfResults.coreWebVitals?.lcp?.rating || getMetricStatus('lcp', perfResults.metrics.lcp || 0)}`}>
                     <div className="metric-label">Largest Contentful Paint</div>
-                    <div className="metric-value">{perfResults.metrics.lcp >= 1000 ? (perfResults.metrics.lcp / 1000).toFixed(1) + 's' : perfResults.metrics.lcp + 'ms'}</div>
+                    <div className="metric-value">{perfResults.metrics.lcp ? (perfResults.metrics.lcp >= 1000 ? (perfResults.metrics.lcp / 1000).toFixed(1) + 's' : perfResults.metrics.lcp + 'ms') : 'N/A'}</div>
                     <div className="metric-target">Target: &lt;2.5s</div>
                   </div>
-                  <div className={`metric-card ${perfResults.coreWebVitals?.cls?.rating || getMetricStatus('cls', perfResults.metrics.cls)}`}>
+                  <div className={`metric-card ${perfResults.coreWebVitals?.cls?.rating || getMetricStatus('cls', perfResults.metrics.cls || 0)}`}>
                     <div className="metric-label">Cumulative Layout Shift</div>
-                    <div className="metric-value">{perfResults.metrics.cls}</div>
+                    <div className="metric-value">{perfResults.metrics.cls !== undefined ? perfResults.metrics.cls : 'N/A'}</div>
                     <div className="metric-target">Target: &lt;0.1</div>
                   </div>
                   {perfResults.metrics.tbt !== undefined ? (
