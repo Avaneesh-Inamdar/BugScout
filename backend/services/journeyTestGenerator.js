@@ -6,80 +6,101 @@ const pageInspector = require('./pageInspector');
  * AI analyzes the page and decides what to test based on what it sees
  */
 
-const SMART_JOURNEY_PROMPT = `You are an expert QA tester analyzing a real webpage. Your job is to understand the page and create a realistic user journey test.
+const SMART_JOURNEY_PROMPT = `You are an expert QA tester simulating a REAL USER journey on a website. Your goal is to test the COMPLETE user experience from start to finish.
 
-ANALYZE THE PAGE:
-1. Look at the visible text to understand what this page is for
-2. Examine each element - what is it? what does it do?
-3. Think about what a real user would do on this page
-4. Consider the logical flow: what comes first, what comes next?
+CRITICAL: FOLLOW THE NATURAL USER JOURNEY ORDER:
+1. SIGNUP FIRST - If there's a signup/register option, create a new account first
+2. THEN LOGIN - After signup, login with the same credentials you just created
+3. THEN EXPLORE - Browse products, search, navigate the site
+4. THEN TAKE ACTION - Add to cart, fill forms, interact with features
+5. FINALLY COMPLETE - Reach the end goal (checkout, submit, complete purchase - but STOP before real payment)
 
-THINK STEP BY STEP:
-- What is the main purpose of this page?
-- What forms or inputs exist? What data do they need?
-- What buttons are there? What do they do?
-- What is the expected user journey from start to finish?
-- What could go wrong? What should we test?
+THINK LIKE A NEW USER:
+- A new user visits the site for the first time
+- They need to create an account before they can do anything
+- After creating account, they login
+- Then they explore what the site offers
+- Finally they complete their goal (buy something, submit a form, etc.)
+
+ANALYZE THE PAGE CAREFULLY:
+1. What is this website/page for? (e-commerce, social media, service, etc.)
+2. Is there a signup/register option? → Do that FIRST
+3. Is there a login option? → Do that AFTER signup
+4. What can users do after logging in? → Test those features
+5. What is the end goal? (purchase, booking, submission) → Reach that point
 
 IMPORTANT RULES:
 1. Use ONLY the exact CSS selectors provided in the elements list
-2. Fill forms with realistic test data appropriate for each field
-3. Follow the natural user flow (don't click checkout before adding to cart)
-4. Include wait steps after actions that trigger page changes
-5. Stop before any real payment/transaction
-6. Test error states too (empty submissions, invalid data)
+2. ALWAYS signup before login if both exist
+3. Use the SAME email/password for signup and login
+4. Fill forms with realistic test data appropriate for each field
+5. Follow the natural user flow - don't skip steps
+6. Include wait steps after actions that trigger page changes
+7. Stop before any real payment/transaction
+8. If you see "Sign Up" and "Login" links, click Sign Up first
 
-For each input field, analyze its purpose from:
-- The placeholder text
-- The field name/type
-- Surrounding labels or text
-- Its position in the form
+TEST DATA TO USE (use these consistently):
+- Email: testuser{{timestamp}}@example.com (I'll replace {{timestamp}})
+- Password: TestPass123!
+- Name: John Smith
+- First Name: John
+- Last Name: Smith
+- Phone: 555-123-4567
+- Address: 123 Test Street
+- City: Test City
+- State: California
+- ZIP: 90210
+- Country: United States
+- Card Number: 4111111111111111 (test card)
+- Card Expiry: 12/28
+- Card CVV: 123
 
-Then provide appropriate test data:
-- Email fields: use testuser@example.com format
-- Password fields: use TestPass123!
-- Name fields: use realistic names like "John Smith"
-- Phone fields: use valid format like "555-123-4567"
-- Address fields: use "123 Test Street"
-- Card numbers: use test card 4111111111111111
-- Dates: use future dates for expiry, past for birthdays
-
-Return a JSON object with your analysis and test plan:
+Return a JSON object with your analysis and COMPLETE user journey test:
 {
   "page_analysis": {
-    "purpose": "What this page is for",
+    "purpose": "What this website/page is for",
+    "website_type": "ecommerce|social|service|blog|webapp|other",
     "main_features": ["feature1", "feature2"],
-    "user_goal": "What a user wants to accomplish here"
+    "user_goal": "What a user ultimately wants to accomplish",
+    "has_signup": true/false,
+    "has_login": true/false,
+    "end_goal": "What the final action should be (checkout, submit, etc.)"
   },
   "test": {
     "id": "journey_1",
     "type": "e2e_journey", 
-    "name": "Descriptive name based on what you're testing",
+    "name": "Complete User Journey: Signup → Login → [Goal]",
     "steps": [
       {
-        "action": "type|click|select|check|wait|hover|press",
-        "target": "exact CSS selector from elements",
-        "value": "appropriate value or null",
-        "reasoning": "Why this step is needed"
+        "action": "click",
+        "target": "selector for signup link/button",
+        "value": null,
+        "reasoning": "First, navigate to signup page to create account"
+      },
+      {
+        "action": "type",
+        "target": "email input selector",
+        "value": "testuser@example.com",
+        "reasoning": "Enter email for new account"
       }
     ],
-    "expected": "What should happen if the test passes"
+    "expected": "User can complete full journey from signup to [end goal]"
   },
-  "detected_flows": ["what user flows you identified"],
-  "potential_issues": ["things that might fail or need attention"]
+  "detected_flows": ["signup", "login", "browse", "cart", "checkout"],
+  "potential_issues": ["things that might fail"]
 }
 
 AVAILABLE ACTIONS:
-- type: Enter text into an input (target: selector, value: text to type)
-- click: Click a button/link (target: selector, value: null)
-- select: Choose from dropdown (target: selector, value: option value)
-- check: Check a checkbox (target: selector, value: null)
-- wait: Pause for page load (target: null, value: milliseconds as string)
-- hover: Mouse over element (target: selector, value: null)
-- press: Press keyboard key (target: selector, value: "Enter" or key name)
-- clear: Clear input field (target: selector, value: null)
+- type: Enter text (target: selector, value: text)
+- click: Click element (target: selector, value: null)
+- select: Choose dropdown option (target: selector, value: option)
+- check: Check checkbox (target: selector, value: null)
+- wait: Pause (target: null, value: "2000" for 2 seconds)
+- hover: Mouse over (target: selector, value: null)
+- press: Keyboard key (target: selector, value: "Enter")
+- clear: Clear input (target: selector, value: null)
 
-NOW ANALYZE THIS PAGE:
+NOW ANALYZE THIS PAGE AND CREATE A COMPLETE USER JOURNEY:
 `;
 
 /**
@@ -169,13 +190,16 @@ function buildPageContext(pageData, url) {
 }
 
 async function generateWithAI(pageContext) {
+  const timestamp = Date.now();
+  const testEmail = `testuser${timestamp}@example.com`;
+  
   const prompt = SMART_JOURNEY_PROMPT + `
 URL: ${pageContext.url}
-Page Type: ${pageContext.pageType}
+Page Type Detected: ${pageContext.pageType}
 Page Title: ${pageContext.title}
 
-VISIBLE TEXT ON PAGE:
-${pageContext.visibleText.substring(0, 2000)}
+VISIBLE TEXT ON PAGE (read this to understand the website):
+${pageContext.visibleText.substring(0, 2500)}
 
 PAGE STATISTICS:
 - ${pageContext.summary.inputs} input fields
@@ -184,15 +208,21 @@ PAGE STATISTICS:
 - ${pageContext.summary.selects} dropdowns
 - ${pageContext.summary.checkboxes} checkboxes
 
-ELEMENTS ON PAGE (with their CSS selectors):
+ALL ELEMENTS ON PAGE (use these exact selectors):
 ${pageContext.elementDescriptions}
 
-Based on your analysis of this page, create a comprehensive test that a real user would perform. Think about what makes sense for THIS specific page.`;
+REMEMBER:
+- Use email: ${testEmail}
+- Use password: TestPass123!
+- SIGNUP FIRST if available, then LOGIN with same credentials
+- Follow the complete user journey to the end goal
+
+Create a comprehensive test that follows the FULL user journey from signup to the final goal.`;
 
   const completion = await apiKeyManager.executeWithFallback(async (groq) => {
     return await groq.chat.completions.create({
       messages: [{ role: 'user', content: prompt }],
-      model: 'llama-3.3-70b-versatile', // Use larger model for better reasoning
+      model: 'llama-3.3-70b-versatile',
       temperature: 0.3,
       max_tokens: 4000
     });
@@ -208,10 +238,11 @@ Based on your analysis of this page, create a comprehensive test that a real use
   
   const result = JSON.parse(jsonMatch[0]);
   
-  // Add reasoning to step descriptions if not present
+  // Replace any {{timestamp}} placeholders with actual timestamp
   if (result.test?.steps) {
     result.test.steps = result.test.steps.map((step, idx) => ({
       ...step,
+      value: step.value?.replace?.(/\{\{timestamp\}\}/g, timestamp) || step.value,
       description: step.reasoning || generateStepDescription(step)
     }));
   }
@@ -298,20 +329,23 @@ function generateStepDescription(step) {
 }
 
 /**
- * Smart fallback when AI is unavailable
+ * Smart fallback when AI is unavailable - follows signup → login → goal flow
  */
 function generateSmartFallback(pageData, url) {
   const elements = pageData.elements || [];
   const steps = [];
   const text = (pageData.visibleText || '').toLowerCase();
+  const timestamp = Date.now();
+  const testEmail = `testuser${timestamp}@example.com`;
+  const testPassword = 'TestPass123!';
   
   // Analyze what's on the page
-  const hasLogin = text.includes('login') || text.includes('sign in');
   const hasSignup = text.includes('sign up') || text.includes('register') || text.includes('create account');
+  const hasLogin = text.includes('login') || text.includes('sign in') || text.includes('log in');
   const hasSearch = elements.some(e => e.type === 'search' || e.placeholder?.toLowerCase().includes('search'));
-  const hasCart = text.includes('cart') || text.includes('add to cart');
-  const hasCheckout = text.includes('checkout') || text.includes('payment');
-  const hasContact = text.includes('contact') || text.includes('message');
+  const hasCart = text.includes('cart') || text.includes('add to cart') || text.includes('buy now');
+  const hasCheckout = text.includes('checkout') || text.includes('payment') || text.includes('place order');
+  const hasContact = text.includes('contact') || text.includes('message') || text.includes('inquiry');
   
   // Find elements by purpose
   const findByPurpose = (purposes) => {
@@ -327,36 +361,66 @@ function generateSmartFallback(pageData, url) {
     return null;
   };
   
-  const emailInput = findByPurpose(['email', 'e-mail', 'username']);
-  const passwordInput = elements.find(e => e.type === 'password');
-  const nameInput = findByPurpose(['name', 'fullname', 'full name']);
-  const phoneInput = findByPurpose(['phone', 'tel', 'mobile']);
-  const searchInput = findByPurpose(['search', 'query', 'q']);
-  const submitButton = elements.find(e => 
-    e.type === 'submit' || 
-    e.visibleText?.toLowerCase().includes('submit') ||
-    e.visibleText?.toLowerCase().includes('login') ||
-    e.visibleText?.toLowerCase().includes('sign')
-  );
+  const findButton = (texts) => {
+    for (const txt of texts) {
+      const found = elements.find(e => 
+        (e.role === 'button' || e.tagName === 'BUTTON' || e.tagName === 'A') &&
+        e.visibleText?.toLowerCase().includes(txt)
+      );
+      if (found) return found;
+    }
+    return null;
+  };
   
-  // Build intelligent test based on page content
-  if (hasSignup || hasLogin) {
-    if (nameInput) {
-      steps.push({ action: 'type', target: nameInput.selector, value: 'John Smith', description: 'Enter name' });
+  // Common elements
+  const emailInput = findByPurpose(['email', 'e-mail', 'username', 'user']);
+  const passwordInput = elements.find(e => e.type === 'password');
+  const confirmPasswordInput = elements.filter(e => e.type === 'password')[1]; // Second password field
+  const nameInput = findByPurpose(['name', 'fullname', 'full name', 'full_name']);
+  const firstNameInput = findByPurpose(['firstname', 'first name', 'first_name', 'fname']);
+  const lastNameInput = findByPurpose(['lastname', 'last name', 'last_name', 'lname']);
+  const phoneInput = findByPurpose(['phone', 'tel', 'mobile', 'cell']);
+  
+  // Buttons
+  const signupButton = findButton(['sign up', 'register', 'create account', 'get started', 'join']);
+  const signupLink = findButton(['sign up', 'register', 'create account']);
+  const loginButton = findButton(['login', 'sign in', 'log in']);
+  const loginLink = findButton(['login', 'sign in', 'log in']);
+  const submitButton = elements.find(e => e.type === 'submit') || findButton(['submit', 'continue', 'next']);
+  
+  const detectedFlows = [];
+  
+  // STEP 1: SIGNUP FIRST (if available)
+  if (hasSignup) {
+    detectedFlows.push('signup');
+    
+    // If there's a signup link, click it first
+    if (signupLink && !passwordInput) {
+      steps.push({ action: 'click', target: signupLink.selector, value: null, description: 'Navigate to signup page' });
+      steps.push({ action: 'wait', target: null, value: '2000', description: 'Wait for signup page to load' });
+    }
+    
+    // Fill signup form
+    if (firstNameInput) {
+      steps.push({ action: 'type', target: firstNameInput.selector, value: 'John', description: 'Enter first name' });
+    }
+    if (lastNameInput) {
+      steps.push({ action: 'type', target: lastNameInput.selector, value: 'Smith', description: 'Enter last name' });
+    }
+    if (nameInput && !firstNameInput) {
+      steps.push({ action: 'type', target: nameInput.selector, value: 'John Smith', description: 'Enter full name' });
     }
     if (emailInput) {
-      steps.push({ action: 'type', target: emailInput.selector, value: 'testuser@example.com', description: 'Enter email' });
+      steps.push({ action: 'type', target: emailInput.selector, value: testEmail, description: 'Enter email for new account' });
     }
     if (phoneInput) {
-      steps.push({ action: 'type', target: phoneInput.selector, value: '555-123-4567', description: 'Enter phone' });
+      steps.push({ action: 'type', target: phoneInput.selector, value: '555-123-4567', description: 'Enter phone number' });
     }
     if (passwordInput) {
-      steps.push({ action: 'type', target: passwordInput.selector, value: 'TestPass123!', description: 'Enter password' });
-      // Check for confirm password
-      const confirmPass = elements.find(e => e.type === 'password' && e !== passwordInput);
-      if (confirmPass) {
-        steps.push({ action: 'type', target: confirmPass.selector, value: 'TestPass123!', description: 'Confirm password' });
-      }
+      steps.push({ action: 'type', target: passwordInput.selector, value: testPassword, description: 'Create password' });
+    }
+    if (confirmPasswordInput) {
+      steps.push({ action: 'type', target: confirmPasswordInput.selector, value: testPassword, description: 'Confirm password' });
     }
     
     // Check any checkboxes (terms, etc)
@@ -365,29 +429,111 @@ function generateSmartFallback(pageData, url) {
       steps.push({ action: 'check', target: cb.selector, value: null, description: 'Accept terms/conditions' });
     });
     
-    if (submitButton) {
-      steps.push({ action: 'click', target: submitButton.selector, value: null, description: 'Submit form' });
-      steps.push({ action: 'wait', target: null, value: '2000', description: 'Wait for response' });
+    // Submit signup
+    if (signupButton) {
+      steps.push({ action: 'click', target: signupButton.selector, value: null, description: 'Submit signup form' });
+    } else if (submitButton) {
+      steps.push({ action: 'click', target: submitButton.selector, value: null, description: 'Submit signup form' });
     }
-  } else if (hasSearch && searchInput) {
-    steps.push({ action: 'type', target: searchInput.selector, value: 'test query', description: 'Enter search term' });
-    steps.push({ action: 'press', target: searchInput.selector, value: 'Enter', description: 'Submit search' });
-    steps.push({ action: 'wait', target: null, value: '1500', description: 'Wait for results' });
-  } else if (hasContact) {
+    steps.push({ action: 'wait', target: null, value: '3000', description: 'Wait for account creation' });
+  }
+  
+  // STEP 2: LOGIN (after signup or if only login exists)
+  if (hasLogin) {
+    detectedFlows.push('login');
+    
+    // If we just signed up, we might need to go to login page
+    if (hasSignup && loginLink) {
+      steps.push({ action: 'click', target: loginLink.selector, value: null, description: 'Navigate to login page' });
+      steps.push({ action: 'wait', target: null, value: '2000', description: 'Wait for login page' });
+    }
+    
+    // Fill login form (use same credentials from signup)
+    if (emailInput) {
+      steps.push({ action: 'clear', target: emailInput.selector, value: null, description: 'Clear email field' });
+      steps.push({ action: 'type', target: emailInput.selector, value: testEmail, description: 'Enter login email' });
+    }
+    if (passwordInput) {
+      steps.push({ action: 'clear', target: passwordInput.selector, value: null, description: 'Clear password field' });
+      steps.push({ action: 'type', target: passwordInput.selector, value: testPassword, description: 'Enter login password' });
+    }
+    
+    // Submit login
+    if (loginButton) {
+      steps.push({ action: 'click', target: loginButton.selector, value: null, description: 'Submit login' });
+    } else if (submitButton) {
+      steps.push({ action: 'click', target: submitButton.selector, value: null, description: 'Submit login' });
+    }
+    steps.push({ action: 'wait', target: null, value: '3000', description: 'Wait for login to complete' });
+  }
+  
+  // STEP 3: EXPLORE & INTERACT (after login)
+  if (hasSearch) {
+    detectedFlows.push('search');
+    const searchInput = findByPurpose(['search', 'query', 'q']);
+    if (searchInput) {
+      steps.push({ action: 'type', target: searchInput.selector, value: 'test product', description: 'Search for products' });
+      steps.push({ action: 'press', target: searchInput.selector, value: 'Enter', description: 'Submit search' });
+      steps.push({ action: 'wait', target: null, value: '2000', description: 'Wait for search results' });
+    }
+  }
+  
+  // STEP 4: ADD TO CART (if e-commerce)
+  if (hasCart) {
+    detectedFlows.push('cart');
+    const addToCartButton = findButton(['add to cart', 'add to bag', 'buy now', 'add']);
+    if (addToCartButton) {
+      steps.push({ action: 'click', target: addToCartButton.selector, value: null, description: 'Add item to cart' });
+      steps.push({ action: 'wait', target: null, value: '1500', description: 'Wait for cart update' });
+    }
+    
+    const viewCartButton = findButton(['view cart', 'cart', 'basket', 'bag']);
+    if (viewCartButton) {
+      steps.push({ action: 'click', target: viewCartButton.selector, value: null, description: 'View cart' });
+      steps.push({ action: 'wait', target: null, value: '2000', description: 'Wait for cart page' });
+    }
+  }
+  
+  // STEP 5: CHECKOUT (final goal - but don't complete payment)
+  if (hasCheckout) {
+    detectedFlows.push('checkout');
+    const checkoutButton = findButton(['checkout', 'proceed', 'continue to checkout', 'place order']);
+    if (checkoutButton) {
+      steps.push({ action: 'click', target: checkoutButton.selector, value: null, description: 'Proceed to checkout' });
+      steps.push({ action: 'wait', target: null, value: '2000', description: 'Wait for checkout page' });
+    }
+    
+    // Fill shipping info if present
+    const addressInput = findByPurpose(['address', 'street', 'address1']);
+    const cityInput = findByPurpose(['city', 'town']);
+    const zipInput = findByPurpose(['zip', 'postal', 'postcode']);
+    
+    if (addressInput) steps.push({ action: 'type', target: addressInput.selector, value: '123 Test Street', description: 'Enter address' });
+    if (cityInput) steps.push({ action: 'type', target: cityInput.selector, value: 'Test City', description: 'Enter city' });
+    if (zipInput) steps.push({ action: 'type', target: zipInput.selector, value: '90210', description: 'Enter ZIP code' });
+    
+    // Note: Don't actually submit payment
+    steps.push({ action: 'wait', target: null, value: '1000', description: 'Checkout form filled - stopping before payment' });
+  }
+  
+  // STEP 6: CONTACT FORM (if that's the main purpose)
+  if (hasContact && !hasSignup && !hasLogin) {
+    detectedFlows.push('contact');
     if (nameInput) steps.push({ action: 'type', target: nameInput.selector, value: 'John Smith', description: 'Enter name' });
-    if (emailInput) steps.push({ action: 'type', target: emailInput.selector, value: 'test@example.com', description: 'Enter email' });
+    if (emailInput) steps.push({ action: 'type', target: emailInput.selector, value: testEmail, description: 'Enter email' });
     const messageInput = elements.find(e => e.tagName === 'TEXTAREA');
-    if (messageInput) steps.push({ action: 'type', target: messageInput.selector, value: 'This is a test message.', description: 'Enter message' });
+    if (messageInput) steps.push({ action: 'type', target: messageInput.selector, value: 'This is a test inquiry message.', description: 'Enter message' });
     if (submitButton) steps.push({ action: 'click', target: submitButton.selector, value: null, description: 'Send message' });
-  } else {
-    // Generic: fill all visible inputs and click buttons
+  }
+  
+  // If no specific flow detected, do generic interaction
+  if (steps.length === 0) {
     const inputs = elements.filter(e => e.tagName === 'INPUT' && e.type !== 'hidden').slice(0, 5);
     inputs.forEach(input => {
       let value = 'test';
-      if (input.type === 'email') value = 'test@example.com';
+      if (input.type === 'email') value = testEmail;
       else if (input.type === 'tel') value = '555-123-4567';
-      else if (input.type === 'number') value = '42';
-      else if (input.type === 'password') value = 'TestPass123!';
+      else if (input.type === 'password') value = testPassword;
       steps.push({ action: 'type', target: input.selector, value, description: `Fill ${input.type || 'text'} field` });
     });
     
@@ -397,26 +543,24 @@ function generateSmartFallback(pageData, url) {
     });
   }
   
-  const detectedFlows = [];
-  if (hasSignup) detectedFlows.push('signup');
-  if (hasLogin) detectedFlows.push('login');
-  if (hasSearch) detectedFlows.push('search');
-  if (hasCart) detectedFlows.push('cart');
-  if (hasCheckout) detectedFlows.push('checkout');
-  if (hasContact) detectedFlows.push('contact');
-  
   return {
     page_analysis: {
       purpose: pageData.pageType + ' page',
+      website_type: hasCart ? 'ecommerce' : hasContact ? 'service' : 'webapp',
       main_features: detectedFlows,
-      user_goal: 'Complete the main action on this page'
+      user_goal: detectedFlows.includes('checkout') ? 'Complete purchase' : 
+                 detectedFlows.includes('signup') ? 'Create account and explore' : 
+                 'Interact with the page',
+      has_signup: hasSignup,
+      has_login: hasLogin,
+      end_goal: detectedFlows[detectedFlows.length - 1] || 'interaction'
     },
     test: {
-      id: 'journey_' + Date.now(),
+      id: 'journey_' + timestamp,
       type: 'e2e_journey',
-      name: `User Journey: ${detectedFlows.join(' → ') || 'Page Interaction'}`,
-      steps: steps.slice(0, 25),
-      expected: 'User can complete the journey without errors'
+      name: `Complete Journey: ${detectedFlows.join(' → ') || 'Page Interaction'}`,
+      steps: steps.slice(0, 30),
+      expected: 'User can complete the full journey from signup to end goal'
     },
     detected_flows: detectedFlows,
     potential_issues: [],
