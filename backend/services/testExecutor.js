@@ -26,25 +26,20 @@ async function execute(testRun) {
   const results = [];
   
   try {
-    // Run only 1 test to minimize memory
-    const test = testRun.tests[0];
-    if (test) {
+    // Run all tests sequentially (reusing browser instance)
+    for (const test of testRun.tests) {
       const result = await executeTest(browser, testRun.url, test, testRun.id, elementMap);
       results.push(result);
     }
-    
-    // Mark remaining tests as pending
-    for (let i = 1; i < testRun.tests.length; i++) {
-      results.push({ 
-        ...testRun.tests[i], 
-        status: 'pending', 
-        error: 'Run individually to save memory',
-        screenshots: []
-      });
-    }
   } catch (err) {
     console.error('Test execution error:', err.message);
-    results.push({ ...testRun.tests[0], status: 'fail', error: err.message, screenshots: [] });
+    // If we have partial results, keep them; mark remaining as failed
+    const completedIds = results.map(r => r.id);
+    for (const test of testRun.tests) {
+      if (!completedIds.includes(test.id)) {
+        results.push({ ...test, status: 'fail', error: err.message, screenshots: [] });
+      }
+    }
   } finally {
     try {
       await browser.close();
