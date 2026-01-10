@@ -267,7 +267,7 @@ async function waitForSPAContent(page) {
           const href = el.getAttribute('href') || '';
           const visibleText = (el.innerText?.substring(0, 100) || el.value || el.getAttribute('value') || '').trim();
           
-          const selector = generateSelector(el, tagName, id, name, type, placeholder, ariaLabel, visibleText, className, role, title, shadowHost);
+          const selector = generateSelector(el, tagName, id, name, type, placeholder, ariaLabel, visibleText, className, role, title, href, shadowHost);
           
           results.push({
             id: 'e' + idx,
@@ -288,7 +288,7 @@ async function waitForSPAContent(page) {
         
         return results;
         
-        function generateSelector(el, tagName, id, name, type, placeholder, ariaLabel, visibleText, className, role, title, shadowHost) {
+        function generateSelector(el, tagName, id, name, type, placeholder, ariaLabel, visibleText, className, role, title, href, shadowHost) {
           const prefix = shadowHost ? '>>> ' : '';
           
           // Priority 1: data-testid or similar testing attributes
