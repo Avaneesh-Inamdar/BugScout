@@ -1293,7 +1293,10 @@ function App() {
                 {(currentRun.status || 'pending').replace(/_/g, ' ')}
               </span>
               {currentRun.isJourneyTest && (
-                <span className="meta-item journey-badge">🚀 Journey Test</span>
+                <span className="meta-item journey-badge">🚀 AI Journey Test</span>
+              )}
+              {currentRun.aiSource === 'ai' && (
+                <span className="meta-item ai-badge">🤖 AI Generated</span>
               )}
               <span className="meta-item">📄 {currentRun.pageData?.pageType || 'Unknown'} page</span>
               <span className="meta-item">🧪 {currentRun.tests?.length || 0} tests</span>
@@ -1307,6 +1310,35 @@ function App() {
                 <span className="meta-item flow-badge">📸 Flow View Available</span>
               )}
             </div>
+
+            {/* AI Page Analysis */}
+            {currentRun.pageAnalysis && (
+              <div className="ai-analysis-card">
+                <div className="ai-analysis-header">
+                  <span className="ai-icon">🧠</span>
+                  <h3>AI Page Analysis</h3>
+                </div>
+                <div className="ai-analysis-content">
+                  <p><strong>Purpose:</strong> {currentRun.pageAnalysis.purpose}</p>
+                  {currentRun.pageAnalysis.user_goal && (
+                    <p><strong>User Goal:</strong> {currentRun.pageAnalysis.user_goal}</p>
+                  )}
+                  {currentRun.pageAnalysis.main_features?.length > 0 && (
+                    <p><strong>Features:</strong> {currentRun.pageAnalysis.main_features.join(', ')}</p>
+                  )}
+                </div>
+                {currentRun.potentialIssues?.length > 0 && (
+                  <div className="potential-issues">
+                    <strong>⚠️ Potential Issues:</strong>
+                    <ul>
+                      {currentRun.potentialIssues.map((issue, i) => (
+                        <li key={i}>{issue}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
 
             {loading && (
               <div className="loading-overlay">

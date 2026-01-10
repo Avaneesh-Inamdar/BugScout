@@ -405,6 +405,68 @@ h1 {
   font-weight: 500;
 }
 
+.meta-item.ai-badge {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
+/* AI Analysis Card */
+.ai-analysis-card {
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(168, 85, 247, 0.1));
+  border: 1px solid var(--accent);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.ai-analysis-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.ai-analysis-header .ai-icon {
+  font-size: 20px;
+}
+
+.ai-analysis-header h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.ai-analysis-content p {
+  margin: 6px 0;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+
+.ai-analysis-content strong {
+  color: var(--text-secondary);
+}
+
+.potential-issues {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.potential-issues ul {
+  margin: 8px 0 0 20px;
+  padding: 0;
+}
+
+.potential-issues li {
+  color: var(--warning);
+  margin: 4px 0;
+}
+
 /* Results Summary Banner */
 .results-summary {
   display: flex;

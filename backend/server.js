@@ -255,7 +255,7 @@ app.post('/api/journey-test', async (req, res) => {
       return res.status(400).json({ error: 'URL is required' });
     }
 
-    console.log(`[Journey] Generating journey test for: ${url}`);
+    console.log(`[Journey] Generating intelligent journey test for: ${url}`);
     const journeyData = await journeyTestGenerator.generateJourneyTest(url);
     
     // Create a test run with the journey test
@@ -267,10 +267,13 @@ app.post('/api/journey-test', async (req, res) => {
       status: 'pending_review',
       createdAt: new Date().toISOString(),
       isJourneyTest: true,
-      journeyName: journeyData.journey_name,
-      detectedFlows: journeyData.detected_flows,
+      journeyName: journeyData.test?.name || 'User Journey Test',
+      detectedFlows: journeyData.detected_flows || [],
+      pageAnalysis: journeyData.page_analysis || null,
+      potentialIssues: journeyData.potential_issues || [],
+      aiSource: journeyData.source || 'unknown',
       pageData: {
-        pageType: journeyData.page_type,
+        pageType: journeyData.page_analysis?.purpose || journeyData.pageData?.pageType || 'unknown',
         elements: journeyData.pageData?.elements || []
       },
       tests: [{
@@ -279,7 +282,7 @@ app.post('/api/journey-test', async (req, res) => {
         screenshots: [],
         flowSteps: []
       }],
-      confidence: 0.8
+      confidence: journeyData.source === 'ai' ? 0.9 : 0.7
     };
     
     await firestoreService.saveTestRun(testRun);
