@@ -16,6 +16,7 @@ Automatically generate comprehensive test plans by simply entering a URL. BugSco
 - Negative test scenarios
 - Edge case detection
 - Login/Signup flow testing
+- Smart action normalization (supports click, type, hover, select, and more)
 
 ### 🐛 Smart Bug Explanations
 When tests fail, BugScout provides plain-English explanations powered by AI:
@@ -23,6 +24,13 @@ When tests fail, BugScout provides plain-English explanations powered by AI:
 - Likely cause of the failure
 - Suggested fixes
 - Actionable tips for developers
+
+### ✅ Test Results Summary
+Clear visual feedback after test execution:
+- Prominent success/failure banner
+- Pass/fail/pending breakdown
+- Individual test status indicators
+- Animated loading states
 
 ### ♿ Accessibility Auditing
 Run comprehensive accessibility audits based on WCAG guidelines:
@@ -82,6 +90,32 @@ Generate shareable links for test reports:
 ### AI/ML
 - **Llama 3.1** - LLM-powered test generation and bug explanations
 
+### Deployment
+- **Railway** - Backend hosting with Docker support
+- **Firebase Hosting** - Frontend deployment
+
+---
+
+## 🎯 Supported Test Actions
+
+BugScout's test executor supports a wide range of actions:
+
+| Action | Aliases | Description |
+|--------|---------|-------------|
+| `click` | `tap` | Click on an element |
+| `type` | `fill`, `input` | Enter text into an input field |
+| `hover` | `mouseover` | Hover over an element |
+| `select` | `selectOption`, `choose` | Select dropdown option |
+| `check` | - | Check a checkbox |
+| `uncheck` | - | Uncheck a checkbox |
+| `press` | `key` | Press a keyboard key |
+| `wait` | `delay`, `sleep` | Wait for specified milliseconds |
+| `clear` | - | Clear input field |
+| `focus` | - | Focus on an element |
+| `doubleclick` | `dblclick` | Double-click an element |
+| `rightclick` | - | Right-click an element |
+| `scroll` | `scrollIntoView` | Scroll element into view |
+
 ---
 
 ## 📖 How to Use
@@ -101,8 +135,8 @@ Visit [bugscout.web.app](https://bugscout.web.app) and sign in with your Google 
 - Each test shows the action, target element, and expected value
 
 ### 4. Execute Tests
-- Click **Run Tests** to execute all test cases
-- View real-time results with screenshots
+- Click **Run All** to execute all test cases
+- View results with a clear pass/fail summary banner
 - Failed tests include AI-powered explanations
 
 ### 5. Additional Tools
@@ -174,12 +208,13 @@ http://localhost:3000
 
 ---
 
-## 📁 Project Structure
+## � Project Structure
 
 ```
 BugScout/
 ├── backend/
 │   ├── server.js              # Express API server
+│   ├── Dockerfile             # Docker config for Railway
 │   └── services/
 │       ├── pageInspector.js   # Page analysis & element detection
 │       ├── testGenerator.js   # AI-powered test generation
@@ -190,6 +225,7 @@ BugScout/
 │       ├── flowRecorder.js    # User interaction recorder
 │       ├── testSuggester.js   # AI test suggestions
 │       ├── visualDiff.js      # Screenshot comparison
+│       ├── apiKeyManager.js   # API key rotation
 │       ├── firestoreService.js
 │       └── storageService.js
 ├── frontend/
@@ -201,7 +237,7 @@ BugScout/
 │   └── public/
 ├── firebase.json              # Firebase hosting config
 ├── firestore.rules            # Firestore security rules
-└── Dockerfile                 # Container configuration
+└── Dockerfile                 # Root container configuration
 ```
 
 ---
