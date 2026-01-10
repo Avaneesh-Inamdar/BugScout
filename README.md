@@ -2,7 +2,7 @@
 
 **AI-Powered QA Testing Platform for Web Applications**
 
-BugScout automatically generates, executes, and analyzes tests for your web applications. Get AI-powered insights, accessibility audits, and performance reports in minutes.
+BugScout automatically generates, executes, and analyzes tests for your web applications. Get AI-powered insights, accessibility audits, and performance reports powered by Google Lighthouse in minutes.
 
 🌐 **Live Demo:** [https://bugscout.web.app](https://bugscout.web.app)
 
@@ -40,17 +40,17 @@ Run comprehensive accessibility audits based on WCAG guidelines:
 - Keyboard navigation issues
 - Accessibility score with detailed breakdown
 
-### ⚡ Performance Analysis
-Get detailed performance metrics for any webpage:
-- First Contentful Paint (FCP)
-- Largest Contentful Paint (LCP)
-- Cumulative Layout Shift (CLS)
-- Time to First Byte (TTFB)
+### ⚡ Performance Analysis (Google Lighthouse)
+Get detailed performance metrics powered by Google PageSpeed Insights API:
+- **4 Category Scores**: Performance, Accessibility, Best Practices, SEO
+- **Core Web Vitals**: FCP, LCP, CLS, TBT with good/needs-improvement/poor ratings
+- **Speed Index & Time to Interactive**
+- **Detailed Recommendations** from Lighthouse audits with potential savings
 - Resource breakdown and optimization suggestions
 
 ### 💡 AI Test Suggestions
 Get intelligent suggestions for additional test cases based on your page content:
-- Security tests
+- Security tests (XSS, SQL injection detection)
 - Boundary tests
 - UX improvements
 - Business logic validation
@@ -62,6 +62,12 @@ Generate shareable links for test reports:
 - Expiration settings
 - One-click sharing
 
+### 🔄 Smart API Rate Limiting
+Built-in protection against API rate limits:
+- Automatic API key rotation
+- Exponential backoff on rate limits
+- Graceful fallbacks when APIs are unavailable
+
 ---
 
 ## 🛠️ Tech Stack
@@ -70,6 +76,7 @@ Generate shareable links for test reports:
 - **Firebase Hosting** - Fast, secure hosting for the web application
 - **Firebase Authentication** - Google Sign-In integration for user management
 - **Cloud Firestore** - NoSQL database for storing test runs and results
+- **Google PageSpeed Insights API** - Lighthouse-powered performance analysis
 
 ### Frontend
 - **React.js** - Modern UI framework
@@ -81,7 +88,7 @@ Generate shareable links for test reports:
 - **Playwright** - Browser automation for test execution
 
 ### AI/ML
-- **Llama 3.1** - LLM-powered test generation and bug explanations
+- **Llama 3.1** (via Groq) - LLM-powered test generation and bug explanations
 
 ### Deployment
 - **Railway** - Backend hosting with Docker support
@@ -142,7 +149,9 @@ Visit [bugscout.web.app](https://bugscout.web.app) and sign in with your Google 
 #### Performance Analysis
 1. Go to **Performance** tab
 2. Enter URL and click **Analyze**
-3. View Core Web Vitals and optimization suggestions
+3. View Lighthouse scores (Performance, Accessibility, Best Practices, SEO)
+4. Check Core Web Vitals with color-coded ratings
+5. Review detailed recommendations with potential time savings
 
 #### Share Reports
 1. Open a completed test run in **Editor**
@@ -175,11 +184,12 @@ cd frontend && npm install
 3. **Configure environment variables**
 ```bash
 # Root .env
-GROQ_API_KEY=your_api_key
-PORT=5000
+GROQ_API_KEY=your_groq_api_key
+PAGESPEED_API_KEY=your_google_pagespeed_api_key
+PORT=3001
 
 # frontend/.env.development
-REACT_APP_API_URL=http://localhost:5000
+REACT_APP_API_URL=http://localhost:3001
 ```
 
 4. **Start the backend**
@@ -200,7 +210,7 @@ http://localhost:3000
 
 ---
 
-## � Project Structure
+## 📁 Project Structure
 
 ```
 BugScout/
@@ -213,9 +223,9 @@ BugScout/
 │       ├── testExecutor.js    # Playwright test runner
 │       ├── bugExplainer.js    # AI failure explanations
 │       ├── accessibilityAuditor.js
-│       ├── performanceAnalyzer.js
+│       ├── performanceAnalyzer.js  # Google Lighthouse integration
 │       ├── visualDiff.js      # Screenshot comparison
-│       ├── apiKeyManager.js   # API key rotation
+│       ├── apiKeyManager.js   # API key rotation & rate limiting
 │       ├── firestoreService.js
 │       └── storageService.js
 ├── frontend/
