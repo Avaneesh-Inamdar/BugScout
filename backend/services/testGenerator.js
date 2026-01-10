@@ -277,16 +277,34 @@ function generateWithRules(pageData) {
       });
     }
   } else if (pageType === 'search') {
-    const searchInput = elements.find(e => e.role === 'text_input' || e.tagName === 'input');
-    const submitEl = elements.find(e => e.role === 'submit_button' || e.role === 'button');
+    const searchInput = elements.find(e => 
+      e.role === 'search_input' || 
+      e.type === 'search' ||
+      e.role === 'searchbox' ||
+      e.placeholder?.toLowerCase().includes('search') ||
+      e.ariaLabel?.toLowerCase().includes('search') ||
+      e.name?.toLowerCase().includes('search') ||
+      e.name?.toLowerCase().includes('query') ||
+      e.name?.toLowerCase() === 'q'
+    ) || elements.find(e => e.role === 'text_input' || e.tagName === 'input');
+    
+    const submitEl = elements.find(e => 
+      e.role === 'submit_button' || 
+      e.role === 'button' ||
+      e.visibleText?.toLowerCase().includes('search') ||
+      e.ariaLabel?.toLowerCase().includes('search')
+    );
     
     if (searchInput) {
       testPlan.push({
         id: 't1',
         type: 'negative',
         name: 'Empty search',
-        steps: [
-          { action: 'click', target: submitEl?.selector || 'button' }
+        steps: submitEl ? [
+          { action: 'click', target: submitEl.selector }
+        ] : [
+          { action: 'click', target: searchInput.selector },
+          { action: 'press', target: searchInput.selector, value: 'Enter' }
         ],
         expected: 'No results or validation message'
       });
@@ -295,9 +313,12 @@ function generateWithRules(pageData) {
         id: 't2',
         type: 'negative',
         name: 'Special characters search',
-        steps: [
+        steps: submitEl ? [
           { action: 'type', target: searchInput.selector, value: '!@#$%^&*()' },
-          { action: 'click', target: submitEl?.selector || 'button' }
+          { action: 'click', target: submitEl.selector }
+        ] : [
+          { action: 'type', target: searchInput.selector, value: '!@#$%^&*()' },
+          { action: 'press', target: searchInput.selector, value: 'Enter' }
         ],
         expected: 'Handles special characters gracefully'
       });
@@ -306,9 +327,12 @@ function generateWithRules(pageData) {
         id: 't3',
         type: 'positive',
         name: 'Valid search query',
-        steps: [
+        steps: submitEl ? [
           { action: 'type', target: searchInput.selector, value: 'test query' },
-          { action: 'click', target: submitEl?.selector || 'button' }
+          { action: 'click', target: submitEl.selector }
+        ] : [
+          { action: 'type', target: searchInput.selector, value: 'test query' },
+          { action: 'press', target: searchInput.selector, value: 'Enter' }
         ],
         expected: 'Search results displayed'
       });

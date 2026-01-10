@@ -119,20 +119,24 @@ app.post('/api/test-runs/:id/execute', async (req, res) => {
       return res.status(404).json({ error: 'Test run not found' });
     }
 
+    // Check for detailed flow mode
+    const { detailedFlow = false } = req.body || {};
+
     await firestoreService.updateTestRun(req.params.id, { status: 'running' });
     
-    console.log(`[${req.params.id}] Executing tests...`);
+    console.log(`[${req.params.id}] Executing tests... (detailedFlow: ${detailedFlow})`);
     
-    // Create a timeout promise
+    // Create a timeout promise - longer timeout for detailed mode
+    const actualTimeout = detailedFlow ? 180000 : timeoutMs; // 3 min for detailed, 2 min normal
     const timeoutPromise = new Promise((_, reject) => {
       timeoutId = setTimeout(() => {
-        reject(new Error('Test execution timed out after 2 minutes'));
-      }, timeoutMs);
+        reject(new Error(`Test execution timed out after ${actualTimeout / 60000} minutes`));
+      }, actualTimeout);
     });
     
     // Race between execution and timeout
     const results = await Promise.race([
-      testExecutor.execute(testRun),
+      testExecutor.execute(testRun, { detailedFlow }),
       timeoutPromise
     ]);
     
@@ -143,7 +147,8 @@ app.post('/api/test-runs/:id/execute', async (req, res) => {
     await firestoreService.updateTestRun(req.params.id, {
       status: finalStatus,
       tests: results,
-      completedAt: new Date().toISOString()
+      completedAt: new Date().toISOString(),
+      hasDetailedFlow: detailedFlow
     });
     
     const updated = await firestoreService.getTestRun(req.params.id);

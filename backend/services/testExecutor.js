@@ -2,7 +2,14 @@ const { chromium } = require('playwright');
 const storageService = require('./storageService');
 const bugExplainer = require('./bugExplainer');
 
-async function execute(testRun) {
+/**
+ * Execute tests with optional detailed flow mode
+ * @param {Object} testRun - The test run object
+ * @param {Object} options - Execution options
+ * @param {boolean} options.detailedFlow - Enable step-by-step screenshots and detailed logging
+ */
+async function execute(testRun, options = {}) {
+  const { detailedFlow = false } = options;
   const elementMap = buildElementMap(testRun.pageData?.elements || []);
   const results = [];
   
@@ -29,11 +36,11 @@ async function execute(testRun) {
         ]
       });
       
-      const result = await executeTest(browser, testRun.url, test, testRun.id, elementMap);
+      const result = await executeTest(browser, testRun.url, test, testRun.id, elementMap, detailedFlow);
       results.push(result);
     } catch (err) {
       console.error(`Test ${test.id} error:`, err.message);
-      results.push({ ...test, status: 'fail', error: err.message, screenshots: [] });
+      results.push({ ...test, status: 'fail', error: err.message, screenshots: [], flowSteps: [] });
     } finally {
       if (browser) {
         try { await browser.close(); } catch (e) { /* ignore */ }
@@ -67,32 +74,194 @@ function resolveSelector(target, elementMap) {
   return target;
 }
 
-async function executeTest(browser, url, test, runId, elementMap) {
+async function executeTest(browser, url, test, runId, elementMap, detailedFlow = false) {
   const page = await browser.newPage();
+  const flowSteps = []; // Store detailed step information
   
   try {
-    // Set small viewport
-    await page.setViewportSize({ width: 800, height: 600 });
+    // Larger viewport for better screenshots in detailed mode
+    await page.setViewportSize(detailedFlow ? { width: 1280, height: 720 } : { width: 800, height: 600 });
     
-    // Block heavy resources
-    await page.route('**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,mp4,mp3}', route => route.abort());
+    // Only block resources in non-detailed mode
+    if (!detailedFlow) {
+      await page.route('**/*.{png,jpg,jpeg,gif,webp,svg,ico,woff,woff2,ttf,mp4,mp3}', route => route.abort());
+    }
     
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 15000 });
     await page.waitForTimeout(1000);
     
-    // Execute steps
-    for (const step of test.steps) {
-      await executeStep(page, step, elementMap);
-      await page.waitForTimeout(200);
+    // Capture initial page state in detailed mode
+    if (detailedFlow) {
+      const initialScreenshot = await captureStepScreenshot(page, runId, test.id, 0, 'initial');
+      flowSteps.push({
+        stepNumber: 0,
+        action: 'navigate',
+        target: url,
+        value: null,
+        status: 'pass',
+        screenshot: initialScreenshot,
+        timestamp: Date.now(),
+        description: `Navigate to ${new URL(url).hostname}`,
+        pageTitle: await page.title().catch(() => ''),
+        pageUrl: page.url()
+      });
     }
     
-    // Skip screenshots to save memory
-    return { ...test, status: 'pass', screenshots: [], error: null };
+    // Execute steps
+    for (let i = 0; i < test.steps.length; i++) {
+      const step = test.steps[i];
+      const stepStartTime = Date.now();
+      
+      try {
+        await executeStep(page, step, elementMap);
+        await page.waitForTimeout(detailedFlow ? 500 : 200); // Longer wait for screenshots
+        
+        if (detailedFlow) {
+          const screenshot = await captureStepScreenshot(page, runId, test.id, i + 1, step.action);
+          flowSteps.push({
+            stepNumber: i + 1,
+            action: step.action,
+            target: step.target,
+            value: maskSensitiveData(step.value, step.target),
+            status: 'pass',
+            screenshot,
+            timestamp: stepStartTime,
+            duration: Date.now() - stepStartTime,
+            description: generateStepDescription(step),
+            pageTitle: await page.title().catch(() => ''),
+            pageUrl: page.url()
+          });
+        }
+      } catch (stepError) {
+        if (detailedFlow) {
+          const errorScreenshot = await captureStepScreenshot(page, runId, test.id, i + 1, 'error');
+          flowSteps.push({
+            stepNumber: i + 1,
+            action: step.action,
+            target: step.target,
+            value: maskSensitiveData(step.value, step.target),
+            status: 'fail',
+            error: stepError.message,
+            screenshot: errorScreenshot,
+            timestamp: stepStartTime,
+            duration: Date.now() - stepStartTime,
+            description: generateStepDescription(step),
+            pageTitle: await page.title().catch(() => ''),
+            pageUrl: page.url()
+          });
+        }
+        throw stepError;
+      }
+    }
+    
+    // Capture final state
+    if (detailedFlow) {
+      const finalScreenshot = await captureStepScreenshot(page, runId, test.id, test.steps.length + 1, 'final');
+      flowSteps.push({
+        stepNumber: test.steps.length + 1,
+        action: 'complete',
+        target: null,
+        value: null,
+        status: 'pass',
+        screenshot: finalScreenshot,
+        timestamp: Date.now(),
+        description: 'Test completed successfully',
+        pageTitle: await page.title().catch(() => ''),
+        pageUrl: page.url()
+      });
+    }
+    
+    return { 
+      ...test, 
+      status: 'pass', 
+      screenshots: flowSteps.filter(s => s.screenshot).map(s => s.screenshot),
+      flowSteps: detailedFlow ? flowSteps : [],
+      error: null 
+    };
   } catch (error) {
-    return { ...test, status: 'fail', screenshots: [], error: error.message };
+    return { 
+      ...test, 
+      status: 'fail', 
+      screenshots: flowSteps.filter(s => s.screenshot).map(s => s.screenshot),
+      flowSteps: detailedFlow ? flowSteps : [],
+      error: error.message 
+    };
   } finally {
     await page.close();
   }
+}
+
+/**
+ * Capture a screenshot for a specific step
+ */
+async function captureStepScreenshot(page, runId, testId, stepNum, stage) {
+  try {
+    const screenshot = await page.screenshot({ 
+      type: 'jpeg',
+      quality: 50, // Balance between quality and size
+      fullPage: false
+    });
+    const filename = `${runId}/${testId}_step${stepNum}_${stage}_${Date.now()}.jpg`;
+    const url = await storageService.uploadScreenshot(filename, screenshot);
+    return url;
+  } catch (e) {
+    console.error('Screenshot capture failed:', e.message);
+    return null;
+  }
+}
+
+/**
+ * Generate human-readable step description
+ */
+function generateStepDescription(step) {
+  const { action, target, value } = step;
+  const shortTarget = target?.length > 40 ? target.substring(0, 40) + '...' : target;
+  
+  switch (action) {
+    case 'click':
+    case 'tap':
+      return `Click on "${shortTarget}"`;
+    case 'type':
+    case 'fill':
+      const maskedValue = maskSensitiveData(value, target);
+      return `Type "${maskedValue}" into "${shortTarget}"`;
+    case 'select':
+    case 'selectOption':
+      return `Select "${value}" from "${shortTarget}"`;
+    case 'hover':
+      return `Hover over "${shortTarget}"`;
+    case 'check':
+      return `Check checkbox "${shortTarget}"`;
+    case 'uncheck':
+      return `Uncheck checkbox "${shortTarget}"`;
+    case 'press':
+    case 'key':
+      return `Press ${value || 'Enter'} key`;
+    case 'wait':
+    case 'delay':
+      return `Wait for ${value || 1000}ms`;
+    case 'clear':
+      return `Clear input "${shortTarget}"`;
+    case 'scroll':
+      return `Scroll to "${shortTarget}"`;
+    case 'assert':
+    case 'verify':
+      return `Verify element "${shortTarget}" exists`;
+    default:
+      return `${action} on "${shortTarget}"`;
+  }
+}
+
+/**
+ * Mask sensitive data like passwords
+ */
+function maskSensitiveData(value, target) {
+  if (!value) return '';
+  const targetLower = (target || '').toLowerCase();
+  if (targetLower.includes('password') || targetLower.includes('secret') || targetLower.includes('token')) {
+    return '••••••••';
+  }
+  return value.length > 30 ? value.substring(0, 30) + '...' : value;
 }
 
 async function executeStep(page, step, elementMap) {
@@ -107,39 +276,134 @@ async function executeStep(page, step, elementMap) {
   let element = null;
   let locator = null;
   
-  // Strategy 1: Direct selector
-  try {
-    locator = page.locator(selector);
-    element = await page.$(selector);
-  } catch (e) { /* continue */ }
+  // Handle special Playwright selector formats
+  const isTextSelector = selector.startsWith('text=');
+  const isRoleSelector = selector.startsWith('role=');
+  const isShadowSelector = selector.includes('>>>');
+  const isIframeSelector = selector.includes('iframe >>');
   
-  // Strategy 2: Try common variations if not found
+  // Strategy 1: Use Playwright locator API for special selectors
+  if (isTextSelector || isRoleSelector) {
+    try {
+      locator = page.locator(selector);
+      const count = await locator.count();
+      if (count > 0) {
+        element = await locator.first().elementHandle();
+      }
+    } catch (e) { 
+      console.log(`Locator failed for ${selector}:`, e.message);
+    }
+  }
+  
+  // Strategy 2: Handle Shadow DOM selectors
+  if (!element && isShadowSelector) {
+    try {
+      const parts = selector.split('>>>').map(s => s.trim());
+      locator = page.locator(parts.join(' >> '));
+      const count = await locator.count();
+      if (count > 0) {
+        element = await locator.first().elementHandle();
+      }
+    } catch (e) {
+      console.log(`Shadow DOM selector failed:`, e.message);
+    }
+  }
+  
+  // Strategy 3: Handle iframe selectors
+  if (!element && isIframeSelector) {
+    try {
+      const [iframePart, innerSelector] = selector.split('iframe >>').map(s => s.trim());
+      const frame = page.frameLocator('iframe').first();
+      locator = frame.locator(innerSelector || iframePart);
+      const count = await locator.count();
+      if (count > 0) {
+        // For iframe elements, we work with locator directly
+        element = { isFrameLocator: true, locator };
+      }
+    } catch (e) {
+      console.log(`Iframe selector failed:`, e.message);
+    }
+  }
+  
+  // Strategy 4: Direct CSS/attribute selector
+  if (!element) {
+    try {
+      locator = page.locator(selector);
+      const count = await locator.count();
+      if (count > 0) {
+        element = await locator.first().elementHandle();
+      }
+    } catch (e) { /* continue */ }
+  }
+  
+  // Strategy 5: Try common variations if not found
   if (!element) {
     const fallbackSelectors = [
-      selector,
-      `[data-testid="${selector}"]`,
-      `button:has-text("${selector}")`,
-      `a:has-text("${selector}")`,
-      `input[placeholder*="${selector}" i]`
+      `[data-testid="${target}"]`,
+      `[data-test="${target}"]`,
+      `[data-cy="${target}"]`,
+      `text="${target}"`,
+      `button:has-text("${target}")`,
+      `a:has-text("${target}")`,
+      `input[placeholder*="${target}" i]`,
+      `[aria-label*="${target}" i]`,
+      `[title*="${target}" i]`
     ];
     
     for (const sel of fallbackSelectors) {
       try {
-        element = await page.$(sel);
-        if (element) {
-          locator = page.locator(sel);
+        locator = page.locator(sel);
+        const count = await locator.count();
+        if (count > 0) {
+          element = await locator.first().elementHandle();
           break;
         }
       } catch (e) { /* continue */ }
     }
   }
   
+  // Strategy 6: Try getByRole, getByText, getByPlaceholder
+  if (!element && target) {
+    try {
+      // Try by text
+      locator = page.getByText(target, { exact: false });
+      let count = await locator.count();
+      if (count > 0) {
+        element = await locator.first().elementHandle();
+      }
+      
+      // Try by placeholder
+      if (!element) {
+        locator = page.getByPlaceholder(target, { exact: false });
+        count = await locator.count();
+        if (count > 0) {
+          element = await locator.first().elementHandle();
+        }
+      }
+      
+      // Try by label
+      if (!element) {
+        locator = page.getByLabel(target, { exact: false });
+        count = await locator.count();
+        if (count > 0) {
+          element = await locator.first().elementHandle();
+        }
+      }
+    } catch (e) { /* continue */ }
+  }
+  
   if (!element) {
     throw new Error(`Element not found: ${target} (selector: ${selector})`);
   }
   
-  // Scroll element into view first
-  await element.scrollIntoViewIfNeeded().catch(() => {});
+  // Handle iframe locator differently
+  if (element.isFrameLocator) {
+    locator = element.locator;
+    element = null; // Will use locator directly
+  } else {
+    // Scroll element into view first
+    await element.scrollIntoViewIfNeeded().catch(() => {});
+  }
   
   // Wait for element to be visible and enabled before interacting
   try {
@@ -149,23 +413,26 @@ async function executeStep(page, step, elementMap) {
   }
   
   // Execute action with force option for stubborn elements
+  // Use locator when element handle is not available (iframe case)
+  const target_el = element || locator;
+  
   switch (action) {
     case 'type':
     case 'fill':
       try {
         // First try normal fill with a shorter timeout
-        await element.fill(value || '', { timeout: 5000 });
+        await locator.fill(value || '', { timeout: 5000 });
       } catch (e) {
         // If fill fails, try clicking first to focus, then fill with force
         console.log(`Fill failed, trying alternative approach for: ${selector}`);
         try {
-          await element.click({ force: true, timeout: 3000 });
+          await locator.click({ force: true, timeout: 3000 });
           await page.waitForTimeout(200);
-          await element.fill(value || '', { force: true, timeout: 5000 });
+          await locator.fill(value || '', { force: true, timeout: 5000 });
         } catch (e2) {
           // Last resort: use keyboard input
           console.log(`Force fill failed, using keyboard input for: ${selector}`);
-          await element.click({ force: true });
+          await locator.click({ force: true });
           await page.keyboard.type(value || '');
         }
       }
@@ -173,36 +440,36 @@ async function executeStep(page, step, elementMap) {
     case 'click':
     case 'tap':
       try {
-        await element.click({ timeout: 5000 });
+        await locator.click({ timeout: 5000 });
       } catch (e) {
         // If normal click fails, try force click
-        await element.click({ force: true });
+        await locator.click({ force: true });
       }
       break;
     case 'doubleclick':
     case 'dblclick':
-      await element.dblclick();
+      await locator.dblclick();
       break;
     case 'rightclick':
-      await element.click({ button: 'right' });
+      await locator.click({ button: 'right' });
       break;
     case 'hover':
     case 'mouseover':
-      await element.hover();
+      await locator.hover();
       break;
     case 'select':
     case 'selectOption':
-      await element.selectOption(value);
+      await locator.selectOption(value);
       break;
     case 'check':
-      await element.check();
+      await locator.check();
       break;
     case 'uncheck':
-      await element.uncheck();
+      await locator.uncheck();
       break;
     case 'press':
     case 'key':
-      await page.keyboard.press(value || 'Enter');
+      await locator.press(value || 'Enter');
       break;
     case 'wait':
     case 'delay':
@@ -210,17 +477,17 @@ async function executeStep(page, step, elementMap) {
       await page.waitForTimeout(parseInt(value) || 1000);
       break;
     case 'clear':
-      await element.fill('');
+      await locator.fill('');
       break;
     case 'focus':
-      await element.focus();
+      await locator.focus();
       break;
     case 'blur':
-      await element.blur();
+      await locator.blur();
       break;
     case 'scroll':
     case 'scrollIntoView':
-      await element.scrollIntoViewIfNeeded();
+      await locator.scrollIntoViewIfNeeded();
       break;
     case 'screenshot':
       // Skip - handled separately
@@ -233,7 +500,7 @@ async function executeStep(page, step, elementMap) {
       // Instead of failing, log warning and try click as fallback
       console.warn(`Unknown action "${action}", attempting click as fallback`);
       try {
-        await element.click({ timeout: 5000 });
+        await locator.click({ timeout: 5000 });
       } catch (e) {
         throw new Error(`Unknown action: ${action}`);
       }

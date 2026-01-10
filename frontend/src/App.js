@@ -61,6 +61,8 @@ function App() {
   const [user, setUser] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [openFaq, setOpenFaq] = useState(null);
+  const [detailedFlowMode, setDetailedFlowMode] = useState(false);
+  const [flowViewTest, setFlowViewTest] = useState(null); // For viewing flow steps of a specific test
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -175,7 +177,7 @@ function App() {
     }
   };
 
-  const executeTests = async () => {
+  const executeTests = async (useDetailedFlow = detailedFlowMode) => {
     if (!currentRun) return;
     setLoading(true);
     try {
@@ -189,12 +191,15 @@ function App() {
       
       await saveChanges();
       
-      // Use AbortController for timeout (3 minutes for test execution)
+      // Use AbortController for timeout (3 minutes for normal, 4 for detailed)
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 180000);
+      const timeoutMs = useDetailedFlow ? 240000 : 180000;
+      const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
       
       const res = await fetch(`${API_URL}/api/test-runs/${currentRun.id}/execute`, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ detailedFlow: useDetailedFlow }),
         signal: controller.signal
       });
       
@@ -1235,13 +1240,23 @@ function App() {
                 <button className="btn btn-secondary" onClick={addCustomTest}>
                   ➕ Add Test
                 </button>
-                <button 
-                  className="btn btn-success"
-                  onClick={executeTests}
-                  disabled={loading}
-                >
-                  {loading ? <span className="spinner"></span> : '▶️'} Run All
-                </button>
+                <div className="run-options">
+                  <button 
+                    className="btn btn-success"
+                    onClick={() => executeTests(false)}
+                    disabled={loading}
+                  >
+                    {loading ? <span className="spinner"></span> : '▶️'} Run All
+                  </button>
+                  <button 
+                    className="btn btn-primary"
+                    onClick={() => executeTests(true)}
+                    disabled={loading}
+                    title="Capture screenshots at each step for detailed flow visualization"
+                  >
+                    {loading ? <span className="spinner"></span> : '📸'} Run with Flow View
+                  </button>
+                </div>
               </div>
             </div>
 
@@ -1254,13 +1269,16 @@ function App() {
               {currentRun.confidence && (
                 <span className="meta-item">🎯 {(currentRun.confidence * 100).toFixed(0)}% confidence</span>
               )}
+              {currentRun.hasDetailedFlow && (
+                <span className="meta-item flow-badge">📸 Flow View Available</span>
+              )}
             </div>
 
             {loading && (
               <div className="loading-overlay">
                 <div className="loading-content">
                   <div className="loading-spinner"></div>
-                  <p>Running tests<span className="loading-dots"><span></span><span></span><span></span></span></p>
+                  <p>Running tests{detailedFlowMode ? ' with flow capture' : ''}<span className="loading-dots"><span></span><span></span><span></span></span></p>
                 </div>
               </div>
             )}
@@ -1311,6 +1329,15 @@ function App() {
                       <span className={`status-badge sm ${getStatusClass(test.status)}`}>
                         {test.status}
                       </span>
+                      {test.flowSteps?.length > 0 && (
+                        <button 
+                          className="btn-icon flow-view-btn" 
+                          onClick={() => setFlowViewTest(test)}
+                          title="View step-by-step flow"
+                        >
+                          📸
+                        </button>
+                      )}
                       <button className="btn-icon" onClick={() => deleteTest(tIdx)}>🗑️</button>
                     </div>
                   </div>
@@ -2168,6 +2195,83 @@ function App() {
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <button className="modal-close" onClick={() => setModalImage(null)}>✕</button>
             <img src={modalImage} alt="Screenshot" />
+          </div>
+        </div>
+      )}
+
+      {/* Flow View Modal */}
+      {flowViewTest && (
+        <div className="modal-overlay flow-modal" onClick={() => setFlowViewTest(null)}>
+          <div className="flow-modal-content" onClick={e => e.stopPropagation()}>
+            <div className="flow-modal-header">
+              <h2>📸 Test Flow: {flowViewTest.name}</h2>
+              <button className="modal-close" onClick={() => setFlowViewTest(null)}>✕</button>
+            </div>
+            
+            <div className="flow-summary">
+              <span className={`flow-status ${flowViewTest.status}`}>
+                {flowViewTest.status === 'pass' ? '✅ Passed' : '❌ Failed'}
+              </span>
+              <span className="flow-steps-count">
+                {flowViewTest.flowSteps?.length || 0} steps captured
+              </span>
+            </div>
+
+            <div className="flow-timeline">
+              {flowViewTest.flowSteps?.map((step, idx) => (
+                <div 
+                  key={idx} 
+                  className={`flow-step ${step.status} ${step.action === 'complete' ? 'final' : ''}`}
+                >
+                  <div className="flow-step-marker">
+                    <div className="step-number-circle">
+                      {step.action === 'navigate' ? '🌐' : 
+                       step.action === 'complete' ? '🏁' :
+                       step.status === 'fail' ? '❌' : idx}
+                    </div>
+                    {idx < flowViewTest.flowSteps.length - 1 && <div className="step-connector"></div>}
+                  </div>
+                  
+                  <div className="flow-step-content">
+                    <div className="flow-step-header">
+                      <span className="flow-action-badge">{step.action}</span>
+                      <span className="flow-step-desc">{step.description}</span>
+                      {step.duration && (
+                        <span className="flow-duration">{step.duration}ms</span>
+                      )}
+                    </div>
+                    
+                    {step.target && step.action !== 'navigate' && step.action !== 'complete' && (
+                      <div className="flow-step-details">
+                        <code className="flow-target">{step.target}</code>
+                        {step.value && <span className="flow-value">→ "{step.value}"</span>}
+                      </div>
+                    )}
+                    
+                    {step.error && (
+                      <div className="flow-error">
+                        ❌ {step.error}
+                      </div>
+                    )}
+                    
+                    {step.screenshot && (
+                      <div className="flow-screenshot-container">
+                        <img 
+                          src={`${API_URL}${step.screenshot}`} 
+                          alt={`Step ${idx}: ${step.description}`}
+                          className="flow-screenshot"
+                          onClick={() => setModalImage(`${API_URL}${step.screenshot}`)}
+                        />
+                        <div className="flow-page-info">
+                          {step.pageTitle && <span className="page-title">{step.pageTitle}</span>}
+                          {step.pageUrl && <span className="page-url">{step.pageUrl}</span>}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       )}

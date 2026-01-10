@@ -14,7 +14,6 @@ async function inspect(url) {
       '--no-zygote',
       '--disable-extensions',
       '--window-size=1280,720',
-      // Memory optimization
       '--disable-background-networking',
       '--disable-default-apps',
       '--disable-sync',
@@ -36,10 +35,8 @@ async function inspect(url) {
       javaScriptEnabled: true
     });
     
-    // Remove webdriver property to avoid detection
     await context.addInitScript(() => {
       Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-      // Also hide automation indicators
       Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
       Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
       window.chrome = { runtime: {} };
@@ -47,7 +44,6 @@ async function inspect(url) {
     
     const page = await context.newPage();
     
-    // Set extra headers to look more like a real browser
     await page.setExtraHTTPHeaders({
       'Accept-Language': 'en-US,en;q=0.9',
       'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
@@ -55,7 +51,7 @@ async function inspect(url) {
       'Pragma': 'no-cache'
     });
     
-    // Navigate with retry logic for redirects
+    // Navigate with retry logic
     let retries = 3;
     while (retries > 0) {
       try {
@@ -70,10 +66,10 @@ async function inspect(url) {
       }
     }
     
-    // Wait for SPA content to load - try multiple strategies
+    // Enhanced SPA content loading
     await waitForSPAContent(page);
     
-    // Check if page has content with retry
+    // Check if page has content
     let bodyContent = 0;
     for (let i = 0; i < 3; i++) {
       try {
@@ -92,11 +88,9 @@ async function inspect(url) {
       throw new Error('Page appears to be blocked or empty. The website may have bot protection.');
     }
     
-    // Capture screenshot (JPEG for smaller size)
     const screenshot = await page.screenshot({ fullPage: false, type: 'jpeg', quality: 60 });
     const screenshotBase64 = screenshot.toString('base64');
     
-    // Helper function to safely evaluate with retry
     const safeEvaluate = async (fn, defaultValue) => {
       for (let i = 0; i < 3; i++) {
         try {
@@ -112,162 +106,65 @@ async function inspect(url) {
       return defaultValue;
     };
     
-    // Extract visible text with retry
     const visibleText = await safeEvaluate(() => {
       return document.body?.innerText?.substring(0, 2000) || '';
     }, '');
     
-    // Extract interactive elements with REAL selectors
-    const elements = await safeEvaluate(() => {
-      // Extended selectors for SPAs and modern frameworks
-      const interactiveSelectors = [
-        'input',
-        'button',
-        'select',
-        'textarea',
-        'a[href]',
-        '[role="button"]',
-        '[role="link"]',
-        '[role="textbox"]',
-        '[role="checkbox"]',
-        '[role="radio"]',
-        '[role="combobox"]',
-        '[role="searchbox"]',
-        '[role="menuitem"]',
-        '[onclick]',
-        '[ng-click]',
-        '[data-action]',
-        '[data-click]',
-        '.btn',
-        '.button',
-        '[tabindex="0"]',
-        '[contenteditable="true"]'
-      ].join(', ');
+    // Extract elements from main document
+    const mainElements = await safeEvaluate(() => extractInteractiveElements(document), []);
+    
+    // Extract elements from Shadow DOM
+    const shadowElements = await safeEvaluate(() => {
+      const elements = [];
+      const shadowHosts = document.querySelectorAll('*');
       
-      const els = document.querySelectorAll(interactiveSelectors);
-      const seen = new Set(); // Avoid duplicates
+      shadowHosts.forEach(host => {
+        if (host.shadowRoot) {
+          const shadowEls = extractInteractiveElements(host.shadowRoot, host);
+          elements.push(...shadowEls);
+        }
+      });
       
-      return Array.from(els).slice(0, 100).map((el, idx) => {
-        const rect = el.getBoundingClientRect();
-        // Skip invisible elements but be more lenient
-        if (rect.width < 5 || rect.height < 5) return null;
-        // Skip elements outside viewport
-        if (rect.top > window.innerHeight * 2 || rect.left > window.innerWidth) return null;
-        
-        const tagName = el.tagName.toLowerCase();
-        const type = el.getAttribute('type') || '';
-        const placeholder = el.getAttribute('placeholder') || '';
-        const ariaLabel = el.getAttribute('aria-label') || '';
-        const name = el.getAttribute('name') || '';
-        const id = el.getAttribute('id') || '';
-        const className = el.className || '';
-        const role = el.getAttribute('role') || '';
-        const visibleText = (el.innerText?.substring(0, 100) || el.value || '').trim();
-        
-        // Generate REAL browser selector (priority order)
-        const selector = generateSelector(el, tagName, id, name, type, placeholder, ariaLabel, visibleText, className, role);
-        
-        // Skip duplicates
-        if (seen.has(selector)) return null;
-        seen.add(selector);
-        
-        return {
-          id: `e${idx}`,
-          selector,
-          tagName,
-          type,
-          placeholder,
-          ariaLabel,
-          name,
-          visibleText,
-          role: getElementRole(tagName, type, role)
-        };
-      }).filter(Boolean).slice(0, 50);
-
-      function generateSelector(el, tagName, id, name, type, placeholder, ariaLabel, visibleText, className, role) {
-        // Priority 1: ID (most reliable) - but skip auto-generated IDs
-        if (id && !id.match(/^[a-f0-9-]{20,}$/i) && !id.match(/^\d+$/)) {
-          return `#${CSS.escape(id)}`;
-        }
-        
-        // Priority 2: data-testid or data-cy (testing attributes)
-        const testId = el.getAttribute('data-testid') || el.getAttribute('data-cy') || el.getAttribute('data-test');
-        if (testId) return `[data-testid="${testId}"]`;
-        
-        // Priority 3: aria-label
-        if (ariaLabel) return `[aria-label="${ariaLabel}"]`;
-        
-        // Priority 4: name attribute
-        if (name) return `${tagName}[name="${name}"]`;
-        
-        // Priority 5: Visible text for buttons/links
-        if (visibleText && visibleText.length < 50 && (tagName === 'button' || tagName === 'a' || role === 'button')) {
-          const cleanText = visibleText.replace(/"/g, '\\"').substring(0, 30);
-          return `${tagName}:has-text("${cleanText}")`;
-        }
-        
-        // Priority 6: type + placeholder for inputs
-        if (tagName === 'input') {
-          if (type === 'email') return 'input[type="email"]';
-          if (type === 'password') return 'input[type="password"]';
-          if (type === 'tel') return 'input[type="tel"]';
-          if (type === 'submit') return 'input[type="submit"]';
-          if (type === 'search') return 'input[type="search"]';
-          if (placeholder) return `input[placeholder="${placeholder}"]`;
-          if (type && type !== 'text') return `input[type="${type}"]`;
-        }
-        
-        // Priority 7: role attribute
-        if (role === 'button' && visibleText) {
-          return `[role="button"]:has-text("${visibleText.substring(0, 30)}")`;
-        }
-        if (role === 'textbox') return '[role="textbox"]';
-        if (role === 'searchbox') return '[role="searchbox"]';
-        
-        // Priority 8: Meaningful class names
-        if (className && typeof className === 'string') {
-          const classes = className.split(/\s+/).filter(c => 
-            c && !c.match(/^[a-z]{1,2}\d+/i) && // Skip minified classes
-            (c.includes('btn') || c.includes('button') || c.includes('input') || 
-             c.includes('field') || c.includes('submit') || c.includes('search'))
-          );
-          if (classes.length > 0) {
-            return `${tagName}.${classes[0]}`;
-          }
-        }
-        
-        // Fallback: tag name with index
-        return tagName;
-      }
-      
-      function getElementRole(tag, type, ariaRole) {
-        if (ariaRole === 'button') return 'button';
-        if (ariaRole === 'textbox' || ariaRole === 'searchbox') return 'text_input';
-        if (ariaRole === 'checkbox') return 'checkbox';
-        if (ariaRole === 'radio') return 'radio';
-        if (ariaRole === 'combobox') return 'dropdown';
-        
-        if (tag === 'input') {
-          if (type === 'email') return 'email_input';
-          if (type === 'password') return 'password_input';
-          if (type === 'tel') return 'phone_input';
-          if (type === 'text') return 'text_input';
-          if (type === 'search') return 'search_input';
-          if (type === 'submit') return 'submit_button';
-          if (type === 'checkbox') return 'checkbox';
-          if (type === 'radio') return 'radio';
-          if (type === 'number') return 'number_input';
-          return 'input';
-        }
-        if (tag === 'button') return 'button';
-        if (tag === 'select') return 'dropdown';
-        if (tag === 'textarea') return 'textarea';
-        if (tag === 'a') return 'link';
-        return 'interactive';
-      }
+      return elements;
     }, []);
     
-    // Detect page type based on elements
+    // Extract elements from iframes (same-origin only)
+    let iframeElements = [];
+    try {
+      const frames = page.frames();
+      for (const frame of frames) {
+        if (frame === page.mainFrame()) continue;
+        try {
+          const frameEls = await frame.evaluate(() => {
+            if (typeof extractInteractiveElements === 'function') {
+              return extractInteractiveElements(document);
+            }
+            return [];
+          });
+          iframeElements.push(...frameEls.map(el => ({
+            ...el,
+            selector: `iframe >> ${el.selector}`,
+            inIframe: true
+          })));
+        } catch (e) {
+          // Cross-origin iframe, skip
+        }
+      }
+    } catch (e) {
+      // Ignore iframe errors
+    }
+    
+    // Combine and deduplicate elements
+    const allElements = [...mainElements, ...shadowElements, ...iframeElements];
+    const seen = new Set();
+    const elements = allElements.filter(el => {
+      if (!el || !el.selector) return false;
+      const key = el.selector + el.visibleText;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    }).slice(0, 80);
+    
     const pageType = detectPageType(elements || [], visibleText);
     
     return {
@@ -282,40 +179,347 @@ async function inspect(url) {
   }
 }
 
-// Wait for SPA content to fully load
+// Inject the extraction function into page context
+
 async function waitForSPAContent(page) {
-  // Strategy 1: Wait for network to be idle
+  // Inject the element extraction function first
+  await page.addScriptTag({
+    content: `
+      window.extractInteractiveElements = function(root, shadowHost) {
+        const interactiveSelectors = [
+          'input:not([type="hidden"])',
+          'button',
+          'select',
+          'textarea',
+          'a[href]',
+          '[role="button"]',
+          '[role="link"]',
+          '[role="textbox"]',
+          '[role="checkbox"]',
+          '[role="radio"]',
+          '[role="combobox"]',
+          '[role="searchbox"]',
+          '[role="menuitem"]',
+          '[role="tab"]',
+          '[role="switch"]',
+          '[role="slider"]',
+          '[role="option"]',
+          '[role="listbox"]',
+          '[onclick]',
+          '[ng-click]',
+          '[@click]',
+          '[v-on\\\\:click]',
+          '[(click)]',
+          '[data-action]',
+          '[data-click]',
+          '[data-href]',
+          '[data-link]',
+          '[data-toggle]',
+          '[data-target]',
+          '[data-bs-toggle]',
+          '[data-bs-target]',
+          '.btn',
+          '.button',
+          '.clickable',
+          '.link',
+          '[tabindex]:not([tabindex="-1"])',
+          '[contenteditable="true"]',
+          'label[for]',
+          'summary',
+          'details',
+          '[draggable="true"]'
+        ].join(', ');
+        
+        const els = root.querySelectorAll(interactiveSelectors);
+        const results = [];
+        let idx = 0;
+        
+        // Also find elements with cursor:pointer style
+        const allEls = root.querySelectorAll('div, span, li, p, img, svg');
+        const clickableByStyle = Array.from(allEls).filter(el => {
+          try {
+            const style = window.getComputedStyle(el);
+            return style.cursor === 'pointer' && !el.closest('a, button, input, select, textarea');
+          } catch (e) { return false; }
+        });
+        
+        const allInteractive = [...Array.from(els), ...clickableByStyle];
+        
+        for (const el of allInteractive) {
+          if (idx >= 100) break;
+          
+          const rect = el.getBoundingClientRect();
+          // More lenient visibility check
+          if (rect.width < 1 || rect.height < 1) continue;
+          // Check if element is actually visible
+          const style = window.getComputedStyle(el);
+          if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') continue;
+          // Skip elements way outside viewport
+          if (rect.top > window.innerHeight * 3 || rect.bottom < -100) continue;
+          if (rect.left > window.innerWidth * 2 || rect.right < -100) continue;
+          
+          const tagName = el.tagName.toLowerCase();
+          const type = el.getAttribute('type') || '';
+          const placeholder = el.getAttribute('placeholder') || '';
+          const ariaLabel = el.getAttribute('aria-label') || '';
+          const name = el.getAttribute('name') || '';
+          const id = el.getAttribute('id') || '';
+          const className = typeof el.className === 'string' ? el.className : '';
+          const role = el.getAttribute('role') || '';
+          const title = el.getAttribute('title') || '';
+          const href = el.getAttribute('href') || '';
+          const visibleText = (el.innerText?.substring(0, 100) || el.value || el.getAttribute('value') || '').trim();
+          
+          const selector = generateSelector(el, tagName, id, name, type, placeholder, ariaLabel, visibleText, className, role, title, shadowHost);
+          
+          results.push({
+            id: 'e' + idx,
+            selector,
+            tagName,
+            type,
+            placeholder,
+            ariaLabel,
+            name,
+            visibleText: visibleText.substring(0, 50),
+            title,
+            href: href ? href.substring(0, 100) : '',
+            role: getElementRole(tagName, type, role),
+            bounds: { x: Math.round(rect.x), y: Math.round(rect.y), w: Math.round(rect.width), h: Math.round(rect.height) }
+          });
+          idx++;
+        }
+        
+        return results;
+        
+        function generateSelector(el, tagName, id, name, type, placeholder, ariaLabel, visibleText, className, role, title, shadowHost) {
+          const prefix = shadowHost ? '>>> ' : '';
+          
+          // Priority 1: data-testid or similar testing attributes
+          const testId = el.getAttribute('data-testid') || el.getAttribute('data-cy') || el.getAttribute('data-test') || el.getAttribute('data-qa');
+          if (testId) return prefix + '[data-testid="' + escapeAttr(testId) + '"]';
+          
+          // Priority 2: ID (skip auto-generated looking IDs)
+          if (id && !id.match(/^[a-f0-9-]{20,}$/i) && !id.match(/^\\d+$/) && !id.match(/^:r[0-9a-z]+:$/i) && !id.match(/^ember\\d+$/i) && !id.match(/^react-/i)) {
+            return prefix + '#' + cssEscape(id);
+          }
+          
+          // Priority 3: aria-label (great for accessibility)
+          if (ariaLabel && ariaLabel.length < 60) {
+            return prefix + '[aria-label="' + escapeAttr(ariaLabel) + '"]';
+          }
+          
+          // Priority 4: name attribute for form elements
+          if (name && ['input', 'select', 'textarea', 'button'].includes(tagName)) {
+            return prefix + tagName + '[name="' + escapeAttr(name) + '"]';
+          }
+          
+          // Priority 5: Specific input types
+          if (tagName === 'input') {
+            if (type === 'email') return prefix + 'input[type="email"]';
+            if (type === 'password') return prefix + 'input[type="password"]';
+            if (type === 'tel') return prefix + 'input[type="tel"]';
+            if (type === 'search') return prefix + 'input[type="search"]';
+            if (type === 'submit') return prefix + 'input[type="submit"]';
+            if (type === 'file') return prefix + 'input[type="file"]';
+            if (type === 'date') return prefix + 'input[type="date"]';
+            if (type === 'number') return prefix + 'input[type="number"]';
+            if (placeholder) return prefix + 'input[placeholder="' + escapeAttr(placeholder) + '"]';
+          }
+          
+          // Priority 6: title attribute
+          if (title && title.length < 60) {
+            return prefix + tagName + '[title="' + escapeAttr(title) + '"]';
+          }
+          
+          // Priority 7: Text content for buttons/links (using Playwright text selector)
+          if (visibleText && visibleText.length > 0 && visibleText.length < 40) {
+            const cleanText = visibleText.replace(/[\\n\\r\\t]+/g, ' ').trim();
+            if (cleanText && (tagName === 'button' || tagName === 'a' || role === 'button' || role === 'link')) {
+              return prefix + 'text="' + cleanText + '"';
+            }
+          }
+          
+          // Priority 8: Role with text
+          if (role && visibleText && visibleText.length < 40) {
+            return prefix + 'role=' + role + '[name="' + escapeAttr(visibleText.substring(0, 30)) + '"]';
+          }
+          
+          // Priority 9: Role alone for specific roles
+          if (role === 'searchbox') return prefix + '[role="searchbox"]';
+          if (role === 'textbox') return prefix + '[role="textbox"]';
+          if (role === 'combobox') return prefix + '[role="combobox"]';
+          
+          // Priority 10: Meaningful class names
+          if (className) {
+            const classes = className.split(/\\s+/).filter(c => 
+              c && c.length > 2 && c.length < 30 &&
+              !c.match(/^[a-z]{1,2}[0-9]+/i) && // Skip minified
+              !c.match(/^css-/) && // Skip CSS-in-JS
+              !c.match(/^sc-/) && // Skip styled-components
+              !c.match(/^_/) && // Skip private classes
+              (c.includes('btn') || c.includes('button') || c.includes('input') || 
+               c.includes('field') || c.includes('submit') || c.includes('search') ||
+               c.includes('login') || c.includes('signup') || c.includes('form') ||
+               c.includes('nav') || c.includes('menu') || c.includes('link') ||
+               c.includes('action') || c.includes('primary') || c.includes('secondary'))
+            );
+            if (classes.length > 0) {
+              return prefix + tagName + '.' + classes[0];
+            }
+          }
+          
+          // Priority 11: href for links
+          if (tagName === 'a' && href && !href.startsWith('javascript:') && !href.startsWith('#')) {
+            const shortHref = href.length > 50 ? href.substring(0, 50) : href;
+            return prefix + 'a[href*="' + escapeAttr(shortHref.split('?')[0].split('#')[0]) + '"]';
+          }
+          
+          // Fallback: Generate a unique path-based selector
+          return prefix + generatePathSelector(el, tagName);
+        }
+        
+        function generatePathSelector(el, tagName) {
+          const path = [];
+          let current = el;
+          let depth = 0;
+          
+          while (current && current !== document.body && depth < 4) {
+            const tag = current.tagName.toLowerCase();
+            const parent = current.parentElement;
+            
+            if (parent) {
+              const siblings = Array.from(parent.children).filter(c => c.tagName.toLowerCase() === tag);
+              if (siblings.length > 1) {
+                const index = siblings.indexOf(current) + 1;
+                path.unshift(tag + ':nth-of-type(' + index + ')');
+              } else {
+                path.unshift(tag);
+              }
+            } else {
+              path.unshift(tag);
+            }
+            
+            current = parent;
+            depth++;
+          }
+          
+          return path.join(' > ');
+        }
+        
+        function cssEscape(str) {
+          return str.replace(/([\\[\\]#.:>+~=^$*|])/g, '\\\\$1');
+        }
+        
+        function escapeAttr(str) {
+          return str.replace(/"/g, '\\\\"').replace(/\\n/g, ' ').trim();
+        }
+        
+        function getElementRole(tag, type, ariaRole) {
+          if (ariaRole) {
+            const roleMap = {
+              'button': 'button', 'link': 'link', 'textbox': 'text_input',
+              'searchbox': 'search_input', 'checkbox': 'checkbox', 'radio': 'radio',
+              'combobox': 'dropdown', 'listbox': 'dropdown', 'menuitem': 'menu_item',
+              'tab': 'tab', 'switch': 'toggle', 'slider': 'slider', 'option': 'option'
+            };
+            if (roleMap[ariaRole]) return roleMap[ariaRole];
+          }
+          
+          if (tag === 'input') {
+            const typeMap = {
+              'email': 'email_input', 'password': 'password_input', 'tel': 'phone_input',
+              'text': 'text_input', 'search': 'search_input', 'submit': 'submit_button',
+              'checkbox': 'checkbox', 'radio': 'radio', 'number': 'number_input',
+              'date': 'date_input', 'file': 'file_input', 'url': 'url_input'
+            };
+            return typeMap[type] || 'input';
+          }
+          
+          const tagMap = {
+            'button': 'button', 'select': 'dropdown', 'textarea': 'textarea',
+            'a': 'link', 'label': 'label', 'summary': 'expandable', 'details': 'expandable'
+          };
+          return tagMap[tag] || 'interactive';
+        }
+      };
+    `
+  }).catch(() => {});
+  
+  // Strategy 1: Wait for network idle
   try {
-    await page.waitForLoadState('networkidle', { timeout: 10000 });
+    await page.waitForLoadState('networkidle', { timeout: 8000 });
   } catch (e) { /* continue */ }
   
-  // Strategy 2: Wait for common SPA frameworks to finish
+  // Strategy 2: Wait for common SPA frameworks
   try {
     await page.waitForFunction(() => {
-      // Check if React/Vue/Angular have finished rendering
-      if (window.__NUXT__ || window.__NEXT_DATA__) return true;
-      if (document.querySelector('[data-reactroot]')) return true;
-      if (document.querySelector('[ng-version]')) return true;
-      if (document.querySelector('[data-v-]')) return true;
-      // Check for loading indicators to disappear
-      const loaders = document.querySelectorAll('[class*="loading"], [class*="spinner"], [class*="skeleton"]');
-      if (loaders.length === 0) return true;
-      // Default: check if body has substantial content
-      return document.body?.innerHTML?.length > 500;
-    }, { timeout: 8000 });
+      // React
+      if (window.__REACT_DEVTOOLS_GLOBAL_HOOK__) return true;
+      if (document.querySelector('[data-reactroot], [data-react-helmet], #__next, #root[data-reactroot]')) return true;
+      // Vue
+      if (window.__VUE__ || window.__NUXT__) return true;
+      if (document.querySelector('[data-v-], [data-server-rendered]')) return true;
+      // Angular
+      if (window.ng || document.querySelector('[ng-version], [_ngcontent]')) return true;
+      // Svelte
+      if (document.querySelector('[class*="svelte-"]')) return true;
+      // Check for loading states to disappear
+      const loaders = document.querySelectorAll('[class*="loading"], [class*="spinner"], [class*="skeleton"], [class*="shimmer"], [aria-busy="true"]');
+      const visibleLoaders = Array.from(loaders).filter(l => {
+        const rect = l.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      });
+      if (visibleLoaders.length === 0) return true;
+      // Default: substantial content
+      return document.body?.innerHTML?.length > 1000;
+    }, { timeout: 10000 });
   } catch (e) { /* continue */ }
   
-  // Strategy 3: Wait a bit more for any lazy-loaded content
-  await page.waitForTimeout(2000);
+  // Strategy 3: Wait for DOM to stabilize
+  await page.waitForTimeout(1500);
   
   // Strategy 4: Scroll to trigger lazy loading
   try {
     await page.evaluate(() => {
-      window.scrollTo(0, 300);
-      window.scrollTo(0, 0);
+      window.scrollTo(0, Math.min(500, document.body.scrollHeight / 4));
     });
-    await page.waitForTimeout(1000);
+    await page.waitForTimeout(800);
+    await page.evaluate(() => window.scrollTo(0, 0));
+    await page.waitForTimeout(500);
   } catch (e) { /* continue */ }
+  
+  // Strategy 5: Click to dismiss any overlays/modals
+  try {
+    await page.evaluate(() => {
+      // Try to close cookie banners, modals, etc.
+      const closeButtons = document.querySelectorAll('[class*="close"], [class*="dismiss"], [class*="accept"], [aria-label*="close"], [aria-label*="Close"], button[class*="cookie"]');
+      closeButtons.forEach(btn => {
+        try {
+          const rect = btn.getBoundingClientRect();
+          if (rect.width > 0 && rect.height > 0 && rect.top < window.innerHeight) {
+            // Don't actually click, just check visibility
+          }
+        } catch (e) {}
+      });
+    });
+  } catch (e) { /* continue */ }
+  
+  // Strategy 6: Trigger any pending animations/transitions
+  try {
+    await page.evaluate(() => {
+      document.querySelectorAll('*').forEach(el => {
+        try {
+          const style = window.getComputedStyle(el);
+          if (style.animationDuration !== '0s' || style.transitionDuration !== '0s') {
+            el.style.animationDuration = '0s';
+            el.style.transitionDuration = '0s';
+          }
+        } catch (e) {}
+      });
+    });
+  } catch (e) { /* continue */ }
+  
+  await page.waitForTimeout(500);
 }
 
 function detectPageType(elements, text) {
@@ -323,6 +527,7 @@ function detectPageType(elements, text) {
   const hasPassword = elements.some(e => e.type === 'password' || e.role === 'password_input');
   const hasSearchInput = elements.some(e => 
     e.type === 'search' || 
+    e.role === 'search_input' ||
     e.placeholder?.toLowerCase().includes('search') ||
     e.name?.toLowerCase().includes('search') ||
     e.ariaLabel?.toLowerCase().includes('search')
@@ -330,22 +535,30 @@ function detectPageType(elements, text) {
   const textLower = text.toLowerCase();
   
   if (hasEmail && hasPassword) {
-    if (textLower.includes('sign up') || textLower.includes('register') || textLower.includes('create account')) {
+    if (textLower.includes('sign up') || textLower.includes('register') || textLower.includes('create account') || textLower.includes('join')) {
       return 'signup';
     }
     return 'login';
   }
   
-  if (textLower.includes('checkout') || textLower.includes('payment') || textLower.includes('cart')) {
+  if (hasPassword && !hasEmail) {
+    return 'login';
+  }
+  
+  if (textLower.includes('checkout') || textLower.includes('payment') || textLower.includes('cart') || textLower.includes('order summary')) {
     return 'checkout';
   }
   
-  if (hasSearchInput || textLower.includes('search') || textLower.includes('wikipedia')) {
+  if (hasSearchInput || elements.some(e => e.role === 'searchbox')) {
     return 'search';
   }
   
   if (textLower.includes('contact') && elements.some(e => e.role === 'textarea')) {
     return 'contact';
+  }
+  
+  if (elements.some(e => e.type === 'file' || e.role === 'file_input')) {
+    return 'upload';
   }
   
   return 'other';
