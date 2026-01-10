@@ -958,9 +958,9 @@ function App() {
                       <p>Catch unintended UI changes with screenshot comparisons</p>
                     </div>
                     <div className="feature-card">
-                      <div className="feature-icon">🎬</div>
-                      <h3>Flow Recording</h3>
-                      <p>Record user flows and replay them as automated tests</p>
+                      <div className="feature-icon">📤</div>
+                      <h3>Shareable Reports</h3>
+                      <p>Generate public links to share test results with your team</p>
                     </div>
                   </div>
                 </div>
