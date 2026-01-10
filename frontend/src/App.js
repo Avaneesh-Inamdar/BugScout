@@ -645,8 +645,27 @@ function App() {
         body: JSON.stringify({ url })
       });
       const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Ensure suggestions array exists
+      if (!data.suggestions || data.suggestions.length === 0) {
+        data.suggestions = [{
+          category: 'ux',
+          title: 'No specific suggestions found',
+          description: 'The page analysis did not find specific test suggestions. Try a page with forms or interactive elements.',
+          testSteps: ['Navigate to a page with login/signup forms', 'Try pages with input fields'],
+          priority: 'low',
+          risk: 'N/A',
+          source: 'fallback'
+        }];
+      }
+      
       setSuggestions(data);
     } catch (err) {
+      console.error('Suggestions error:', err);
       alert('Failed to get suggestions: ' + err.message);
     } finally {
       setSuggestLoading(false);

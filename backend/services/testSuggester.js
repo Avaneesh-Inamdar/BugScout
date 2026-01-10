@@ -32,24 +32,33 @@ async function suggest(pageData) {
   // Always add rule-based suggestions first
   const ruleBased = getRuleBasedSuggestions(pageData);
   suggestions.push(...ruleBased);
+  
+  console.log(`[Suggester] Generated ${ruleBased.length} rule-based suggestions`);
 
   // Try AI suggestions using apiKeyManager with fallback
   if (apiKeyManager.hasKeys()) {
     try {
       const aiSuggestions = await getAISuggestions(pageData);
+      console.log(`[Suggester] Generated ${aiSuggestions.length} AI suggestions`);
       suggestions.push(...aiSuggestions);
     } catch (error) {
-      console.error('AI suggestions error:', error.message);
+      console.error('[Suggester] AI suggestions error:', error.message);
+      // Continue with rule-based suggestions only
     }
+  } else {
+    console.log('[Suggester] No API keys available, using rule-based only');
   }
 
   // Deduplicate by title
   const seen = new Set();
-  return suggestions.filter(s => {
+  const result = suggestions.filter(s => {
     if (seen.has(s.title)) return false;
     seen.add(s.title);
     return true;
   }).slice(0, 10);
+  
+  console.log(`[Suggester] Returning ${result.length} total suggestions`);
+  return result;
 }
 
 async function getAISuggestions(pageData) {
@@ -225,6 +234,73 @@ function getRuleBasedSuggestions(pageData) {
       ],
       priority: 'low',
       risk: 'Poor user experience or confusion',
+      source: 'rule'
+    });
+  }
+
+  // Check for links
+  const links = elements.filter(el => el.tagName === 'A' || el.role === 'link');
+  if (links.length > 0) {
+    suggestions.push({
+      category: 'ux',
+      title: 'Link Navigation Testing',
+      description: 'Verify all links work correctly',
+      testSteps: [
+        'Check all links have valid href attributes',
+        'Verify external links open in new tab',
+        'Test broken link detection',
+        'Check link hover states'
+      ],
+      priority: 'low',
+      risk: 'Broken navigation or dead ends',
+      source: 'rule'
+    });
+  }
+
+  // Always add general suggestions if we have few specific ones
+  if (suggestions.length < 3) {
+    suggestions.push({
+      category: 'security',
+      title: 'General Security Checks',
+      description: 'Basic security verification for any page',
+      testSteps: [
+        'Check for HTTPS connection',
+        'Verify no sensitive data in URL',
+        'Check Content-Security-Policy headers',
+        'Test for clickjacking protection'
+      ],
+      priority: 'medium',
+      risk: 'Security vulnerabilities',
+      source: 'rule'
+    });
+
+    suggestions.push({
+      category: 'ux',
+      title: 'Responsive Design Testing',
+      description: 'Test page on different screen sizes',
+      testSteps: [
+        'Test on mobile viewport (375px)',
+        'Test on tablet viewport (768px)',
+        'Test on desktop viewport (1920px)',
+        'Check for horizontal scrolling issues'
+      ],
+      priority: 'medium',
+      risk: 'Poor mobile experience',
+      source: 'rule'
+    });
+
+    suggestions.push({
+      category: 'edge_case',
+      title: 'Browser Compatibility',
+      description: 'Test across different browsers',
+      testSteps: [
+        'Test in Chrome, Firefox, Safari',
+        'Test in Edge browser',
+        'Check for JavaScript errors in console',
+        'Verify CSS renders correctly'
+      ],
+      priority: 'low',
+      risk: 'Broken functionality for some users',
       source: 'rule'
     });
   }
