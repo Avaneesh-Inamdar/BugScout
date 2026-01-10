@@ -1317,11 +1317,63 @@ h1 {
   color: var(--text-secondary);
 }
 
+/* Lighthouse Category Scores */
+.lighthouse-scores {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.lighthouse-score-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.lighthouse-score-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+}
+
+.lighthouse-score-card.perf-excellent::before { background: var(--success); }
+.lighthouse-score-card.perf-average::before { background: var(--warning); }
+.lighthouse-score-card.perf-poor::before { background: var(--danger); }
+
+.lighthouse-score-value {
+  font-size: 36px;
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.lighthouse-score-card.perf-excellent .lighthouse-score-value { color: var(--success); }
+.lighthouse-score-card.perf-average .lighthouse-score-value { color: var(--warning); }
+.lighthouse-score-card.perf-poor .lighthouse-score-value { color: var(--danger); }
+
+.lighthouse-score-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
 .metrics-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   gap: 16px;
   margin-bottom: 24px;
+}
+
+.metrics-grid.secondary {
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .metric-card {
@@ -1334,7 +1386,7 @@ h1 {
 }
 
 .metric-card.good { border-top-color: var(--success); }
-.metric-card.average { border-top-color: var(--warning); }
+.metric-card.average, .metric-card.needs-improvement { border-top-color: var(--warning); }
 .metric-card.poor { border-top-color: var(--danger); }
 .metric-card.neutral { border-top-color: var(--border); }
 
@@ -1479,6 +1531,10 @@ h1 {
   .perf-quick-stats {
     justify-content: center;
     flex-wrap: wrap;
+  }
+  
+  .lighthouse-scores {
+    grid-template-columns: repeat(2, 1fr);
   }
   
   .resource-row {

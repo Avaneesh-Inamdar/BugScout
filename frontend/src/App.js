@@ -1661,35 +1661,84 @@ function App() {
                     <h2>Performance Score</h2>
                     <p>{perfResults.url}</p>
                     <div className="perf-quick-stats">
-                      <span>📦 {perfResults.metrics.totalSizeFormatted}</span>
-                      <span>🔗 {perfResults.metrics.totalRequests} requests</span>
-                      <span>⏱️ {perfResults.metrics.loadTime}ms load</span>
+                      <span>📦 {perfResults.metrics.totalSizeFormatted || formatBytes(perfResults.metrics.totalSize || 0)}</span>
+                      <span>🔗 {perfResults.metrics.totalRequests || 0} requests</span>
+                      {perfResults.source === 'lighthouse' ? (
+                        <span>🔬 Lighthouse</span>
+                      ) : (
+                        <span>⏱️ {perfResults.metrics.loadTime || 0}ms load</span>
+                      )}
                     </div>
                   </div>
                 </div>
 
+                {/* Lighthouse Category Scores */}
+                {perfResults.scores && (
+                  <div className="lighthouse-scores">
+                    <div className={`lighthouse-score-card ${getPerfScoreColor(perfResults.scores.performance)}`}>
+                      <div className="lighthouse-score-value">{perfResults.scores.performance}</div>
+                      <div className="lighthouse-score-label">Performance</div>
+                    </div>
+                    <div className={`lighthouse-score-card ${getPerfScoreColor(perfResults.scores.accessibility)}`}>
+                      <div className="lighthouse-score-value">{perfResults.scores.accessibility}</div>
+                      <div className="lighthouse-score-label">Accessibility</div>
+                    </div>
+                    <div className={`lighthouse-score-card ${getPerfScoreColor(perfResults.scores.bestPractices)}`}>
+                      <div className="lighthouse-score-value">{perfResults.scores.bestPractices}</div>
+                      <div className="lighthouse-score-label">Best Practices</div>
+                    </div>
+                    <div className={`lighthouse-score-card ${getPerfScoreColor(perfResults.scores.seo)}`}>
+                      <div className="lighthouse-score-value">{perfResults.scores.seo}</div>
+                      <div className="lighthouse-score-label">SEO</div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Core Web Vitals */}
                 <div className="metrics-grid">
-                  <div className={`metric-card ${getMetricStatus('fcp', perfResults.metrics.fcp)}`}>
+                  <div className={`metric-card ${perfResults.coreWebVitals?.fcp?.rating || getMetricStatus('fcp', perfResults.metrics.fcp)}`}>
                     <div className="metric-label">First Contentful Paint</div>
-                    <div className="metric-value">{perfResults.metrics.fcp}ms</div>
+                    <div className="metric-value">{perfResults.metrics.fcp >= 1000 ? (perfResults.metrics.fcp / 1000).toFixed(1) + 's' : perfResults.metrics.fcp + 'ms'}</div>
                     <div className="metric-target">Target: &lt;1.8s</div>
                   </div>
-                  <div className={`metric-card ${getMetricStatus('lcp', perfResults.metrics.lcp)}`}>
+                  <div className={`metric-card ${perfResults.coreWebVitals?.lcp?.rating || getMetricStatus('lcp', perfResults.metrics.lcp)}`}>
                     <div className="metric-label">Largest Contentful Paint</div>
-                    <div className="metric-value">{perfResults.metrics.lcp}ms</div>
+                    <div className="metric-value">{perfResults.metrics.lcp >= 1000 ? (perfResults.metrics.lcp / 1000).toFixed(1) + 's' : perfResults.metrics.lcp + 'ms'}</div>
                     <div className="metric-target">Target: &lt;2.5s</div>
                   </div>
-                  <div className={`metric-card ${getMetricStatus('cls', perfResults.metrics.cls)}`}>
+                  <div className={`metric-card ${perfResults.coreWebVitals?.cls?.rating || getMetricStatus('cls', perfResults.metrics.cls)}`}>
                     <div className="metric-label">Cumulative Layout Shift</div>
                     <div className="metric-value">{perfResults.metrics.cls}</div>
                     <div className="metric-target">Target: &lt;0.1</div>
                   </div>
-                  <div className={`metric-card ${getMetricStatus('ttfb', perfResults.metrics.ttfb)}`}>
-                    <div className="metric-label">Time to First Byte</div>
-                    <div className="metric-value">{perfResults.metrics.ttfb}ms</div>
-                    <div className="metric-target">Target: &lt;600ms</div>
-                  </div>
+                  {perfResults.metrics.tbt !== undefined ? (
+                    <div className={`metric-card ${perfResults.coreWebVitals?.tbt?.rating || 'neutral'}`}>
+                      <div className="metric-label">Total Blocking Time</div>
+                      <div className="metric-value">{perfResults.metrics.tbt}ms</div>
+                      <div className="metric-target">Target: &lt;200ms</div>
+                    </div>
+                  ) : perfResults.metrics.ttfb !== undefined && (
+                    <div className={`metric-card ${getMetricStatus('ttfb', perfResults.metrics.ttfb)}`}>
+                      <div className="metric-label">Time to First Byte</div>
+                      <div className="metric-value">{perfResults.metrics.ttfb}ms</div>
+                      <div className="metric-target">Target: &lt;600ms</div>
+                    </div>
+                  )}
                 </div>
+
+                {/* Additional Lighthouse Metrics */}
+                {perfResults.metrics.si !== undefined && (
+                  <div className="metrics-grid secondary">
+                    <div className="metric-card neutral">
+                      <div className="metric-label">Speed Index</div>
+                      <div className="metric-value">{perfResults.metrics.si >= 1000 ? (perfResults.metrics.si / 1000).toFixed(1) + 's' : perfResults.metrics.si + 'ms'}</div>
+                    </div>
+                    <div className="metric-card neutral">
+                      <div className="metric-label">Time to Interactive</div>
+                      <div className="metric-value">{perfResults.metrics.tti >= 1000 ? (perfResults.metrics.tti / 1000).toFixed(1) + 's' : perfResults.metrics.tti + 'ms'}</div>
+                    </div>
+                  </div>
+                )}
 
                 {perfResults.coverage && (
                   <div className="card">
