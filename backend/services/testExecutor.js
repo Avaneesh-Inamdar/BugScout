@@ -77,6 +77,7 @@ function resolveSelector(target, elementMap) {
 async function executeTest(browser, url, test, runId, elementMap, detailedFlow = false) {
   const page = await browser.newPage();
   const flowSteps = []; // Store detailed step information
+  let lastScreenshotHash = null; // Track to avoid duplicate screenshots
   
   try {
     // Larger viewport for better screenshots in detailed mode
@@ -92,14 +93,15 @@ async function executeTest(browser, url, test, runId, elementMap, detailedFlow =
     
     // Capture initial page state in detailed mode
     if (detailedFlow) {
-      const initialScreenshot = await captureStepScreenshot(page, runId, test.id, 0, 'initial');
+      const { screenshot, hash } = await captureSmartScreenshot(page, runId, test.id, 0, 'initial', lastScreenshotHash);
+      lastScreenshotHash = hash;
       flowSteps.push({
         stepNumber: 0,
         action: 'navigate',
         target: url,
         value: null,
         status: 'pass',
-        screenshot: initialScreenshot,
+        screenshot,
         timestamp: Date.now(),
         description: `Navigate to ${new URL(url).hostname}`,
         pageTitle: await page.title().catch(() => ''),
@@ -111,30 +113,64 @@ async function executeTest(browser, url, test, runId, elementMap, detailedFlow =
     for (let i = 0; i < test.steps.length; i++) {
       const step = test.steps[i];
       const stepStartTime = Date.now();
+      const prevUrl = page.url();
       
       try {
         await executeStep(page, step, elementMap);
-        await page.waitForTimeout(detailedFlow ? 500 : 200); // Longer wait for screenshots
+        await page.waitForTimeout(detailedFlow ? 500 : 200);
         
         if (detailedFlow) {
-          const screenshot = await captureStepScreenshot(page, runId, test.id, i + 1, step.action);
-          flowSteps.push({
-            stepNumber: i + 1,
-            action: step.action,
-            target: step.target,
-            value: maskSensitiveData(step.value, step.target),
-            status: 'pass',
-            screenshot,
-            timestamp: stepStartTime,
-            duration: Date.now() - stepStartTime,
-            description: generateStepDescription(step),
-            pageTitle: await page.title().catch(() => ''),
-            pageUrl: page.url()
-          });
+          const currentUrl = page.url();
+          const urlChanged = currentUrl !== prevUrl;
+          const isSignificantAction = ['click', 'submit', 'select', 'check', 'navigate'].includes(step.action);
+          
+          // Only capture screenshot if URL changed OR it's a significant action
+          if (urlChanged || isSignificantAction) {
+            const { screenshot, hash, isDuplicate } = await captureSmartScreenshot(
+              page, runId, test.id, i + 1, step.action, lastScreenshotHash
+            );
+            
+            if (!isDuplicate) {
+              lastScreenshotHash = hash;
+            }
+            
+            flowSteps.push({
+              stepNumber: i + 1,
+              action: step.action,
+              target: step.target,
+              value: maskSensitiveData(step.value, step.target),
+              status: 'pass',
+              screenshot: isDuplicate ? null : screenshot, // Don't store duplicate
+              timestamp: stepStartTime,
+              duration: Date.now() - stepStartTime,
+              description: generateStepDescription(step),
+              pageTitle: await page.title().catch(() => ''),
+              pageUrl: currentUrl,
+              urlChanged,
+              skippedScreenshot: isDuplicate ? 'duplicate' : null
+            });
+          } else {
+            // For non-significant actions (like typing), just log without screenshot
+            flowSteps.push({
+              stepNumber: i + 1,
+              action: step.action,
+              target: step.target,
+              value: maskSensitiveData(step.value, step.target),
+              status: 'pass',
+              screenshot: null,
+              timestamp: stepStartTime,
+              duration: Date.now() - stepStartTime,
+              description: generateStepDescription(step),
+              pageTitle: await page.title().catch(() => ''),
+              pageUrl: currentUrl,
+              skippedScreenshot: 'minor_action'
+            });
+          }
         }
       } catch (stepError) {
         if (detailedFlow) {
-          const errorScreenshot = await captureStepScreenshot(page, runId, test.id, i + 1, 'error');
+          // Always capture screenshot on error
+          const { screenshot } = await captureSmartScreenshot(page, runId, test.id, i + 1, 'error', null);
           flowSteps.push({
             stepNumber: i + 1,
             action: step.action,
@@ -142,7 +178,7 @@ async function executeTest(browser, url, test, runId, elementMap, detailedFlow =
             value: maskSensitiveData(step.value, step.target),
             status: 'fail',
             error: stepError.message,
-            screenshot: errorScreenshot,
+            screenshot,
             timestamp: stepStartTime,
             duration: Date.now() - stepStartTime,
             description: generateStepDescription(step),
@@ -154,36 +190,47 @@ async function executeTest(browser, url, test, runId, elementMap, detailedFlow =
       }
     }
     
-    // Capture final state
+    // Capture final state (only if different from last screenshot)
     if (detailedFlow) {
-      const finalScreenshot = await captureStepScreenshot(page, runId, test.id, test.steps.length + 1, 'final');
-      flowSteps.push({
-        stepNumber: test.steps.length + 1,
-        action: 'complete',
-        target: null,
-        value: null,
-        status: 'pass',
-        screenshot: finalScreenshot,
-        timestamp: Date.now(),
-        description: 'Test completed successfully',
-        pageTitle: await page.title().catch(() => ''),
-        pageUrl: page.url()
-      });
+      const { screenshot, isDuplicate } = await captureSmartScreenshot(
+        page, runId, test.id, test.steps.length + 1, 'final', lastScreenshotHash
+      );
+      
+      if (!isDuplicate) {
+        flowSteps.push({
+          stepNumber: test.steps.length + 1,
+          action: 'complete',
+          target: null,
+          value: null,
+          status: 'pass',
+          screenshot,
+          timestamp: Date.now(),
+          description: 'Test completed successfully',
+          pageTitle: await page.title().catch(() => ''),
+          pageUrl: page.url()
+        });
+      }
     }
+    
+    // Filter out steps without screenshots for cleaner flow view
+    const cleanedFlowSteps = detailedFlow ? flowSteps.filter(s => s.screenshot || s.status === 'fail') : [];
     
     return { 
       ...test, 
       status: 'pass', 
-      screenshots: flowSteps.filter(s => s.screenshot).map(s => s.screenshot),
-      flowSteps: detailedFlow ? flowSteps : [],
+      screenshots: cleanedFlowSteps.filter(s => s.screenshot).map(s => s.screenshot),
+      flowSteps: cleanedFlowSteps,
       error: null 
     };
   } catch (error) {
+    // Filter out steps without screenshots
+    const cleanedFlowSteps = detailedFlow ? flowSteps.filter(s => s.screenshot || s.status === 'fail') : [];
+    
     return { 
       ...test, 
       status: 'fail', 
-      screenshots: flowSteps.filter(s => s.screenshot).map(s => s.screenshot),
-      flowSteps: detailedFlow ? flowSteps : [],
+      screenshots: cleanedFlowSteps.filter(s => s.screenshot).map(s => s.screenshot),
+      flowSteps: cleanedFlowSteps,
       error: error.message 
     };
   } finally {
@@ -192,7 +239,41 @@ async function executeTest(browser, url, test, runId, elementMap, detailedFlow =
 }
 
 /**
- * Capture a screenshot for a specific step
+ * Smart screenshot capture - avoids duplicates by comparing page content hash
+ */
+async function captureSmartScreenshot(page, runId, testId, stepNum, stage, lastHash) {
+  try {
+    // Get a simple hash of visible content to detect duplicates
+    const currentHash = await page.evaluate(() => {
+      const content = document.body?.innerText?.substring(0, 500) || '';
+      const url = window.location.href;
+      return `${url}::${content.length}::${content.substring(0, 100)}`;
+    }).catch(() => '');
+    
+    // Check if page content is same as last screenshot
+    const isDuplicate = lastHash && currentHash === lastHash;
+    
+    if (isDuplicate) {
+      return { screenshot: null, hash: currentHash, isDuplicate: true };
+    }
+    
+    const screenshot = await page.screenshot({ 
+      type: 'jpeg',
+      quality: 50,
+      fullPage: false
+    });
+    const filename = `${runId}/${testId}_step${stepNum}_${stage}_${Date.now()}.jpg`;
+    const url = await storageService.uploadScreenshot(filename, screenshot);
+    
+    return { screenshot: url, hash: currentHash, isDuplicate: false };
+  } catch (e) {
+    console.error('Smart screenshot capture failed:', e.message);
+    return { screenshot: null, hash: null, isDuplicate: false };
+  }
+}
+
+/**
+ * Capture a screenshot for a specific step (legacy)
  */
 async function captureStepScreenshot(page, runId, testId, stepNum, stage) {
   try {

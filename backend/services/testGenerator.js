@@ -166,136 +166,123 @@ function generateWithRules(pageData) {
   
   const testPlan = [];
   
+  // Helper to find elements by various criteria
+  const findElement = (criteria) => {
+    return elements.find(e => {
+      for (const [key, value] of Object.entries(criteria)) {
+        if (key === 'role' && e.role === value) return true;
+        if (key === 'type' && e.type === value) return true;
+        if (key === 'placeholderIncludes' && e.placeholder?.toLowerCase().includes(value)) return true;
+        if (key === 'nameIncludes' && e.name?.toLowerCase().includes(value)) return true;
+        if (key === 'textIncludes' && e.visibleText?.toLowerCase().includes(value)) return true;
+        if (key === 'ariaIncludes' && e.ariaLabel?.toLowerCase().includes(value)) return true;
+      }
+      return false;
+    });
+  };
+  
+  // Find all interactive elements by type
+  const emailEl = findElement({ type: 'email' }) || findElement({ role: 'email_input' });
+  const passEl = findElement({ type: 'password' }) || findElement({ role: 'password_input' });
+  const phoneEl = findElement({ type: 'tel' }) || findElement({ placeholderIncludes: 'phone' }) || findElement({ placeholderIncludes: 'mobile' });
+  const nameEl = findElement({ placeholderIncludes: 'name' }) || findElement({ nameIncludes: 'name' });
+  const searchEl = findElement({ type: 'search' }) || findElement({ role: 'search_input' }) || findElement({ placeholderIncludes: 'search' }) || findElement({ nameIncludes: 'search' }) || findElement({ name: 'q' });
+  const submitEl = findElement({ type: 'submit' }) || findElement({ role: 'submit_button' }) || elements.find(e => e.role === 'button' && (e.visibleText?.toLowerCase().includes('submit') || e.visibleText?.toLowerCase().includes('login') || e.visibleText?.toLowerCase().includes('sign')));
+  const buttons = elements.filter(e => e.role === 'button' || e.tagName === 'button');
+  const links = elements.filter(e => e.role === 'link' || e.tagName === 'a');
+  const inputs = elements.filter(e => e.tagName === 'input' && e.type !== 'hidden');
+  const dropdowns = elements.filter(e => e.role === 'dropdown' || e.tagName === 'select');
+  const checkboxes = elements.filter(e => e.role === 'checkbox' || e.type === 'checkbox');
+  
   if (pageType === 'login' || pageType === 'signup') {
-    const emailEl = elements.find(e => e.role === 'email_input' || e.type === 'email');
-    const passEl = elements.find(e => e.role === 'password_input' || e.type === 'password');
-    const phoneEl = elements.find(e => e.type === 'tel' || e.placeholder?.toLowerCase().includes('phone') || e.placeholder?.toLowerCase().includes('mobile'));
-    const submitEl = elements.find(e => e.role === 'submit_button' || e.role === 'button');
+    // Comprehensive login/signup flow test
+    const flowSteps = [];
     
-    // Handle phone-based login (like meesho)
-    if (phoneEl && !emailEl && submitEl) {
-      testPlan.push({
-        id: 't1',
-        type: 'negative',
-        name: 'Empty phone submission',
-        steps: [
-          { action: 'click', target: submitEl.selector }
-        ],
-        expected: 'Validation error shown for required phone number'
-      });
-      
-      testPlan.push({
-        id: 't2',
-        type: 'negative',
-        name: 'Invalid phone number',
-        steps: [
-          { action: 'type', target: phoneEl.selector, value: '123' },
-          { action: 'click', target: submitEl.selector }
-        ],
-        expected: 'Phone validation error shown'
-      });
-      
-      testPlan.push({
-        id: 't3',
-        type: 'positive',
-        name: 'Valid phone number submission',
-        steps: [
-          { action: 'type', target: phoneEl.selector, value: '9876543210' },
-          { action: 'click', target: submitEl.selector }
-        ],
-        expected: 'OTP screen or next step shown'
-      });
-    }
-    // Handle email/password login
-    else if (emailEl && passEl && submitEl) {
+    // Step 1: Test empty submission first
+    if (submitEl) {
       testPlan.push({
         id: 't1',
         type: 'negative',
         name: 'Empty form submission',
-        steps: [
-          { action: 'click', target: submitEl.selector }
-        ],
+        steps: [{ action: 'click', target: submitEl.selector }],
         expected: 'Validation error shown for required fields'
       });
-      
+    }
+    
+    // Step 2: Build comprehensive form fill test
+    if (nameEl) flowSteps.push({ action: 'type', target: nameEl.selector, value: 'Test User' });
+    if (emailEl) flowSteps.push({ action: 'type', target: emailEl.selector, value: 'test@example.com' });
+    if (phoneEl) flowSteps.push({ action: 'type', target: phoneEl.selector, value: '9876543210' });
+    if (passEl) flowSteps.push({ action: 'type', target: passEl.selector, value: 'SecurePass123!' });
+    
+    // Handle confirm password if exists
+    const confirmPassEl = elements.find(e => 
+      (e.type === 'password' && e !== passEl) || 
+      e.placeholder?.toLowerCase().includes('confirm') ||
+      e.name?.toLowerCase().includes('confirm')
+    );
+    if (confirmPassEl) flowSteps.push({ action: 'type', target: confirmPassEl.selector, value: 'SecurePass123!' });
+    
+    // Handle checkboxes (terms, newsletter, etc.)
+    checkboxes.forEach((cb, idx) => {
+      if (idx < 2) { // Limit to first 2 checkboxes
+        flowSteps.push({ action: 'check', target: cb.selector });
+      }
+    });
+    
+    // Handle dropdowns
+    dropdowns.forEach((dd, idx) => {
+      if (idx < 1) { // Limit to first dropdown
+        flowSteps.push({ action: 'click', target: dd.selector });
+      }
+    });
+    
+    if (submitEl) flowSteps.push({ action: 'click', target: submitEl.selector });
+    
+    if (flowSteps.length > 1) {
       testPlan.push({
         id: 't2',
+        type: 'positive',
+        name: `Complete ${pageType} flow`,
+        steps: flowSteps,
+        expected: 'Form submits successfully, user is logged in or account created'
+      });
+    }
+    
+    // Step 3: Invalid email test
+    if (emailEl && submitEl) {
+      testPlan.push({
+        id: 't3',
         type: 'negative',
         name: 'Invalid email format',
         steps: [
           { action: 'type', target: emailEl.selector, value: 'invalid-email' },
-          { action: 'type', target: passEl.selector, value: 'password123' },
+          ...(passEl ? [{ action: 'type', target: passEl.selector, value: 'password123' }] : []),
           { action: 'click', target: submitEl.selector }
         ],
         expected: 'Email validation error shown'
       });
-      
-      testPlan.push({
-        id: 't3',
-        type: 'positive',
-        name: 'Valid credentials submission',
-        steps: [
-          { action: 'type', target: emailEl.selector, value: 'test@example.com' },
-          { action: 'type', target: passEl.selector, value: 'ValidPass123!' },
-          { action: 'click', target: submitEl.selector }
-        ],
-        expected: 'Form submits successfully or redirects'
-      });
     }
-    // Handle password-only (like some login flows)
-    else if (passEl && submitEl) {
+    
+    // Step 4: Weak password test (for signup)
+    if (pageType === 'signup' && passEl && submitEl) {
       testPlan.push({
-        id: 't1',
+        id: 't4',
         type: 'negative',
-        name: 'Empty password submission',
+        name: 'Weak password',
         steps: [
-          { action: 'click', target: submitEl.selector }
-        ],
-        expected: 'Validation error shown'
-      });
-      
-      testPlan.push({
-        id: 't2',
-        type: 'negative',
-        name: 'Short password',
-        steps: [
+          ...(emailEl ? [{ action: 'type', target: emailEl.selector, value: 'test@example.com' }] : []),
           { action: 'type', target: passEl.selector, value: '123' },
           { action: 'click', target: submitEl.selector }
         ],
-        expected: 'Password validation error shown'
-      });
-      
-      testPlan.push({
-        id: 't3',
-        type: 'positive',
-        name: 'Valid password submission',
-        steps: [
-          { action: 'type', target: passEl.selector, value: 'ValidPass123!' },
-          { action: 'click', target: submitEl.selector }
-        ],
-        expected: 'Form submits successfully'
+        expected: 'Password strength error shown'
       });
     }
+    
   } else if (pageType === 'search') {
-    const searchInput = elements.find(e => 
-      e.role === 'search_input' || 
-      e.type === 'search' ||
-      e.role === 'searchbox' ||
-      e.placeholder?.toLowerCase().includes('search') ||
-      e.ariaLabel?.toLowerCase().includes('search') ||
-      e.name?.toLowerCase().includes('search') ||
-      e.name?.toLowerCase().includes('query') ||
-      e.name?.toLowerCase() === 'q'
-    ) || elements.find(e => e.role === 'text_input' || e.tagName === 'input');
-    
-    const submitEl = elements.find(e => 
-      e.role === 'submit_button' || 
-      e.role === 'button' ||
-      e.visibleText?.toLowerCase().includes('search') ||
-      e.ariaLabel?.toLowerCase().includes('search')
-    );
-    
-    if (searchInput) {
+    // Comprehensive search flow
+    if (searchEl) {
+      // Test 1: Empty search
       testPlan.push({
         id: 't1',
         type: 'negative',
@@ -303,78 +290,226 @@ function generateWithRules(pageData) {
         steps: submitEl ? [
           { action: 'click', target: submitEl.selector }
         ] : [
-          { action: 'click', target: searchInput.selector },
-          { action: 'press', target: searchInput.selector, value: 'Enter' }
+          { action: 'click', target: searchEl.selector },
+          { action: 'press', target: searchEl.selector, value: 'Enter' }
         ],
         expected: 'No results or validation message'
       });
       
+      // Test 2: Special characters
       testPlan.push({
         id: 't2',
         type: 'negative',
         name: 'Special characters search',
         steps: submitEl ? [
-          { action: 'type', target: searchInput.selector, value: '!@#$%^&*()' },
+          { action: 'type', target: searchEl.selector, value: '!@#$%^&*()' },
           { action: 'click', target: submitEl.selector }
         ] : [
-          { action: 'type', target: searchInput.selector, value: '!@#$%^&*()' },
-          { action: 'press', target: searchInput.selector, value: 'Enter' }
+          { action: 'type', target: searchEl.selector, value: '!@#$%^&*()' },
+          { action: 'press', target: searchEl.selector, value: 'Enter' }
         ],
         expected: 'Handles special characters gracefully'
       });
       
+      // Test 3: Valid search
       testPlan.push({
         id: 't3',
         type: 'positive',
         name: 'Valid search query',
         steps: submitEl ? [
-          { action: 'type', target: searchInput.selector, value: 'test query' },
+          { action: 'type', target: searchEl.selector, value: 'test product' },
           { action: 'click', target: submitEl.selector }
         ] : [
-          { action: 'type', target: searchInput.selector, value: 'test query' },
-          { action: 'press', target: searchInput.selector, value: 'Enter' }
+          { action: 'type', target: searchEl.selector, value: 'test product' },
+          { action: 'press', target: searchEl.selector, value: 'Enter' }
         ],
         expected: 'Search results displayed'
+      });
+      
+      // Test 4: Long query
+      testPlan.push({
+        id: 't4',
+        type: 'boundary',
+        name: 'Long search query',
+        steps: [
+          { action: 'type', target: searchEl.selector, value: 'this is a very long search query to test the input field limits and behavior' },
+          { action: 'press', target: searchEl.selector, value: 'Enter' }
+        ],
+        expected: 'Handles long query appropriately'
+      });
+    }
+    
+  } else if (pageType === 'checkout') {
+    // Comprehensive checkout flow
+    const cardNumberEl = findElement({ placeholderIncludes: 'card' }) || findElement({ nameIncludes: 'card' });
+    const expiryEl = findElement({ placeholderIncludes: 'expir' }) || findElement({ nameIncludes: 'expir' }) || findElement({ placeholderIncludes: 'mm' });
+    const cvvEl = findElement({ placeholderIncludes: 'cvv' }) || findElement({ placeholderIncludes: 'cvc' }) || findElement({ nameIncludes: 'cvv' });
+    const addressEl = findElement({ placeholderIncludes: 'address' }) || findElement({ nameIncludes: 'address' });
+    const cityEl = findElement({ placeholderIncludes: 'city' }) || findElement({ nameIncludes: 'city' });
+    const zipEl = findElement({ placeholderIncludes: 'zip' }) || findElement({ placeholderIncludes: 'postal' }) || findElement({ nameIncludes: 'zip' });
+    const payButton = findElement({ textIncludes: 'pay' }) || findElement({ textIncludes: 'place order' }) || findElement({ textIncludes: 'complete' }) || submitEl;
+    
+    // Test 1: Empty checkout submission
+    if (payButton) {
+      testPlan.push({
+        id: 't1',
+        type: 'negative',
+        name: 'Empty checkout submission',
+        steps: [{ action: 'click', target: payButton.selector }],
+        expected: 'Validation errors shown for required fields'
+      });
+    }
+    
+    // Test 2: Invalid card number
+    if (cardNumberEl && payButton) {
+      testPlan.push({
+        id: 't2',
+        type: 'negative',
+        name: 'Invalid card number',
+        steps: [
+          { action: 'type', target: cardNumberEl.selector, value: '1234' },
+          { action: 'click', target: payButton.selector }
+        ],
+        expected: 'Card number validation error'
+      });
+    }
+    
+    // Test 3: Complete checkout flow
+    const checkoutSteps = [];
+    if (nameEl) checkoutSteps.push({ action: 'type', target: nameEl.selector, value: 'Test User' });
+    if (emailEl) checkoutSteps.push({ action: 'type', target: emailEl.selector, value: 'test@example.com' });
+    if (phoneEl) checkoutSteps.push({ action: 'type', target: phoneEl.selector, value: '9876543210' });
+    if (addressEl) checkoutSteps.push({ action: 'type', target: addressEl.selector, value: '123 Test Street' });
+    if (cityEl) checkoutSteps.push({ action: 'type', target: cityEl.selector, value: 'Test City' });
+    if (zipEl) checkoutSteps.push({ action: 'type', target: zipEl.selector, value: '12345' });
+    if (cardNumberEl) checkoutSteps.push({ action: 'type', target: cardNumberEl.selector, value: '4111111111111111' });
+    if (expiryEl) checkoutSteps.push({ action: 'type', target: expiryEl.selector, value: '12/25' });
+    if (cvvEl) checkoutSteps.push({ action: 'type', target: cvvEl.selector, value: '123' });
+    if (payButton) checkoutSteps.push({ action: 'click', target: payButton.selector });
+    
+    if (checkoutSteps.length > 2) {
+      testPlan.push({
+        id: 't3',
+        type: 'positive',
+        name: 'Complete checkout flow',
+        steps: checkoutSteps,
+        expected: 'Order placed successfully or payment processed'
+      });
+    }
+    
+  } else if (pageType === 'contact') {
+    // Contact form flow
+    const messageEl = elements.find(e => e.tagName === 'textarea' || e.role === 'textarea');
+    const subjectEl = findElement({ placeholderIncludes: 'subject' }) || findElement({ nameIncludes: 'subject' });
+    
+    // Test 1: Empty submission
+    if (submitEl) {
+      testPlan.push({
+        id: 't1',
+        type: 'negative',
+        name: 'Empty contact form',
+        steps: [{ action: 'click', target: submitEl.selector }],
+        expected: 'Validation errors for required fields'
+      });
+    }
+    
+    // Test 2: Complete contact form
+    const contactSteps = [];
+    if (nameEl) contactSteps.push({ action: 'type', target: nameEl.selector, value: 'Test User' });
+    if (emailEl) contactSteps.push({ action: 'type', target: emailEl.selector, value: 'test@example.com' });
+    if (phoneEl) contactSteps.push({ action: 'type', target: phoneEl.selector, value: '9876543210' });
+    if (subjectEl) contactSteps.push({ action: 'type', target: subjectEl.selector, value: 'Test Inquiry' });
+    if (messageEl) contactSteps.push({ action: 'type', target: messageEl.selector, value: 'This is a test message for the contact form.' });
+    if (submitEl) contactSteps.push({ action: 'click', target: submitEl.selector });
+    
+    if (contactSteps.length > 1) {
+      testPlan.push({
+        id: 't2',
+        type: 'positive',
+        name: 'Complete contact form',
+        steps: contactSteps,
+        expected: 'Message sent successfully'
       });
     }
   }
   
-  // Generic fallback tests - use real selectors
+  // Generic fallback tests - comprehensive coverage of all elements
   if (testPlan.length === 0) {
-    const inputs = elements.filter(e => e.tagName === 'input' || e.tagName === 'textarea');
-    const buttons = elements.filter(e => e.role === 'button' || e.role === 'submit_button');
-    
-    if (inputs.length > 0 && buttons.length > 0) {
+    // Test 1: Empty form submission
+    if (buttons.length > 0) {
       testPlan.push({
         id: 't1',
         type: 'negative',
         name: 'Empty form submission',
-        steps: [
-          { action: 'click', target: buttons[0].selector }
-        ],
+        steps: [{ action: 'click', target: buttons[0].selector }],
         expected: 'Validation or error handling'
       });
-      
+    }
+    
+    // Test 2: Fill all inputs and submit
+    const formSteps = [];
+    inputs.slice(0, 5).forEach((input, idx) => { // Limit to first 5 inputs
+      let value = 'test value';
+      if (input.type === 'email') value = 'test@example.com';
+      else if (input.type === 'tel') value = '9876543210';
+      else if (input.type === 'number') value = '42';
+      else if (input.type === 'url') value = 'https://example.com';
+      else if (input.type === 'date') value = '2025-01-10';
+      formSteps.push({ action: 'type', target: input.selector, value });
+    });
+    
+    // Handle checkboxes
+    checkboxes.slice(0, 2).forEach(cb => {
+      formSteps.push({ action: 'check', target: cb.selector });
+    });
+    
+    // Handle dropdowns
+    dropdowns.slice(0, 1).forEach(dd => {
+      formSteps.push({ action: 'click', target: dd.selector });
+    });
+    
+    if (buttons.length > 0) {
+      formSteps.push({ action: 'click', target: buttons[0].selector });
+    }
+    
+    if (formSteps.length > 1) {
       testPlan.push({
         id: 't2',
-        type: 'negative',
-        name: 'Invalid input data',
-        steps: [
-          { action: 'type', target: inputs[0].selector, value: '!@#$%' },
-          { action: 'click', target: buttons[0].selector }
-        ],
-        expected: 'Handles invalid input gracefully'
+        type: 'positive',
+        name: 'Complete form interaction',
+        steps: formSteps,
+        expected: 'Form processes correctly'
       });
-      
+    }
+    
+    // Test 3: Test navigation links
+    const navLinks = links.filter(l => 
+      l.visibleText && 
+      !l.href?.includes('javascript:') && 
+      !l.href?.startsWith('#')
+    ).slice(0, 2);
+    
+    if (navLinks.length > 0) {
       testPlan.push({
         id: 't3',
         type: 'positive',
-        name: 'Valid form interaction',
+        name: 'Navigation test',
+        steps: navLinks.map(link => ({ action: 'click', target: link.selector })),
+        expected: 'Navigation works correctly'
+      });
+    }
+    
+    // Test 4: Invalid input test
+    if (inputs.length > 0 && buttons.length > 0) {
+      testPlan.push({
+        id: 't4',
+        type: 'negative',
+        name: 'Invalid input data',
         steps: [
-          { action: 'type', target: inputs[0].selector, value: 'test value' },
+          { action: 'type', target: inputs[0].selector, value: '!@#$%^&*()' },
           { action: 'click', target: buttons[0].selector }
         ],
-        expected: 'Form processes input correctly'
+        expected: 'Handles invalid input gracefully'
       });
     }
   }
@@ -388,7 +523,7 @@ function generateWithRules(pageData) {
       selector: e.selector
     })),
     test_plan: testPlan,
-    confidence: 0.7
+    confidence: testPlan.length > 2 ? 0.8 : 0.6
   };
 }
 
