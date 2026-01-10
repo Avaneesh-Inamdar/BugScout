@@ -258,54 +258,127 @@ function validateAndFixSelectors(aiResult, elements) {
   const elementMap = {};
   elements.forEach(e => {
     elementMap[e.selector] = e;
-    if (e.name) elementMap[e.name] = e;
+    if (e.name) elementMap[e.name.toLowerCase()] = e;
     if (e.placeholder) elementMap[e.placeholder.toLowerCase()] = e;
-    if (e.type) elementMap[e.type] = e;
+    if (e.id) elementMap[e.id.toLowerCase()] = e;
+    if (e.type) elementMap[e.type.toLowerCase()] = e;
+    if (e.ariaLabel) elementMap[e.ariaLabel.toLowerCase()] = e;
   });
   
   if (aiResult.test?.steps) {
-    aiResult.test.steps = aiResult.test.steps.map(step => {
-      if (!step.target || step.action === 'wait') return step;
-      
-      // If selector is valid, keep it
-      if (selectorSet.has(step.target)) return step;
-      
-      // Try to find matching element
-      const targetLower = step.target.toLowerCase();
-      
-      // Try by name
-      const byName = elements.find(e => e.name?.toLowerCase() === targetLower);
-      if (byName) return { ...step, target: byName.selector };
-      
-      // Try by placeholder
-      const byPlaceholder = elements.find(e => 
-        e.placeholder?.toLowerCase().includes(targetLower) ||
-        targetLower.includes(e.placeholder?.toLowerCase() || '')
-      );
-      if (byPlaceholder) return { ...step, target: byPlaceholder.selector };
-      
-      // Try by visible text
-      const byText = elements.find(e => 
-        e.visibleText?.toLowerCase().includes(targetLower) ||
-        targetLower.includes(e.visibleText?.toLowerCase() || '')
-      );
-      if (byText) return { ...step, target: byText.selector };
-      
-      // Try by type for inputs
-      if (step.action === 'type') {
-        if (targetLower.includes('email')) {
-          const emailInput = elements.find(e => e.type === 'email');
-          if (emailInput) return { ...step, target: emailInput.selector };
+    aiResult.test.steps = aiResult.test.steps
+      .filter(step => {
+        // Remove steps with no action
+        if (!step.action) return false;
+        // Keep wait steps even without target
+        if (step.action === 'wait' || step.action === 'delay') return true;
+        // Remove steps with obviously invalid targets
+        if (step.target === 'Select element...' || step.target === 'Select element') return false;
+        if (!step.target && step.action !== 'wait') return false;
+        return true;
+      })
+      .map(step => {
+        // Skip wait steps
+        if (step.action === 'wait' || step.action === 'delay' || !step.target) return step;
+        
+        // Clean up the target - remove any description text that got mixed in
+        let cleanTarget = step.target;
+        
+        // Fix malformed selectors like "#loginEmail: email_input [your@email.com]"
+        if (cleanTarget.includes(':') && cleanTarget.includes('[') && !cleanTarget.startsWith('[')) {
+          // Extract just the ID part
+          const idMatch = cleanTarget.match(/^#?([a-zA-Z][a-zA-Z0-9_-]*)/);
+          if (idMatch) {
+            cleanTarget = '#' + idMatch[1];
+          }
         }
-        if (targetLower.includes('password')) {
-          const passInput = elements.find(e => e.type === 'password');
-          if (passInput) return { ...step, target: passInput.selector };
+        
+        // Remove any trailing descriptions in brackets that aren't valid attribute selectors
+        if (cleanTarget.includes(' [') && !cleanTarget.match(/\[[\w-]+=/)) {
+          cleanTarget = cleanTarget.split(' [')[0].trim();
         }
-      }
-      
-      // Keep original if no match found (will fail gracefully during execution)
-      return step;
-    });
+        
+        // If selector is valid, keep it
+        if (selectorSet.has(cleanTarget)) {
+          return { ...step, target: cleanTarget };
+        }
+        
+        // Try to find matching element
+        const targetLower = (step.target || '').toLowerCase();
+        
+        // Try by exact selector match
+        const bySelector = elements.find(e => e.selector === step.target);
+        if (bySelector) return { ...step, target: bySelector.selector };
+        
+        // Try by ID
+        const idMatch = step.target.match(/^#?([a-zA-Z][a-zA-Z0-9_-]*)/);
+        if (idMatch) {
+          const byId = elements.find(e => e.selector === '#' + idMatch[1]);
+          if (byId) return { ...step, target: byId.selector };
+        }
+        
+        // Try by name
+        const byName = elements.find(e => e.name?.toLowerCase() === targetLower);
+        if (byName) return { ...step, target: byName.selector };
+        
+        // Try by placeholder
+        const byPlaceholder = elements.find(e => 
+          e.placeholder?.toLowerCase().includes(targetLower) ||
+          targetLower.includes(e.placeholder?.toLowerCase() || '')
+        );
+        if (byPlaceholder) return { ...step, target: byPlaceholder.selector };
+        
+        // Try by visible text
+        const byText = elements.find(e => 
+          e.visibleText?.toLowerCase().includes(targetLower) ||
+          targetLower.includes(e.visibleText?.toLowerCase() || '')
+        );
+        if (byText) return { ...step, target: byText.selector };
+        
+        // Try by aria-label
+        const byAriaLabel = elements.find(e =>
+          e.ariaLabel?.toLowerCase().includes(targetLower) ||
+          targetLower.includes(e.ariaLabel?.toLowerCase() || '')
+        );
+        if (byAriaLabel) return { ...step, target: byAriaLabel.selector };
+        
+        // Try by type for inputs
+        if (step.action === 'type') {
+          if (targetLower.includes('email')) {
+            const emailInput = elements.find(e => e.type === 'email' || e.role === 'email_input');
+            if (emailInput) return { ...step, target: emailInput.selector };
+          }
+          if (targetLower.includes('password')) {
+            const passInput = elements.find(e => e.type === 'password' || e.role === 'password_input');
+            if (passInput) return { ...step, target: passInput.selector };
+          }
+          if (targetLower.includes('name') || targetLower.includes('full')) {
+            const nameInput = elements.find(e => 
+              e.name?.toLowerCase().includes('name') || 
+              e.placeholder?.toLowerCase().includes('name')
+            );
+            if (nameInput) return { ...step, target: nameInput.selector };
+          }
+          if (targetLower.includes('phone') || targetLower.includes('tel')) {
+            const phoneInput = elements.find(e => e.type === 'tel' || e.role === 'phone_input');
+            if (phoneInput) return { ...step, target: phoneInput.selector };
+          }
+        }
+        
+        // Try by button text for clicks
+        if (step.action === 'click') {
+          const byButtonText = elements.find(e => 
+            (e.role === 'button' || e.tagName === 'BUTTON' || e.tagName === 'A') &&
+            (e.visibleText?.toLowerCase().includes(targetLower) || 
+             targetLower.includes(e.visibleText?.toLowerCase() || ''))
+          );
+          if (byButtonText) return { ...step, target: byButtonText.selector };
+        }
+        
+        // Keep original if no match found (will fail gracefully during execution)
+        console.log(`Could not fix selector: ${step.target}`);
+        return { ...step, target: cleanTarget };
+      });
   }
   
   return aiResult;

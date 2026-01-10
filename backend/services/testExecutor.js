@@ -348,8 +348,26 @@ function maskSensitiveData(value, target) {
 async function executeStep(page, step, elementMap) {
   const { action, target, value } = step;
   
+  // Handle wait action specially - doesn't need a selector
+  if (action === 'wait' || action === 'delay' || action === 'sleep') {
+    await page.waitForTimeout(parseInt(value) || 1000);
+    return;
+  }
+  
+  // Skip if no target provided
+  if (!target) {
+    console.log(`Skipping step with no target: ${action}`);
+    return;
+  }
+  
   // Resolve internal ID to real selector
   const selector = resolveSelector(target, elementMap);
+  
+  // Skip if selector is null/undefined/empty
+  if (!selector) {
+    console.log(`Skipping step with invalid selector: ${action} on "${target}"`);
+    return;
+  }
   
   console.log(`Executing: ${action} on "${selector}" (from target: "${target}")`);
   
@@ -357,11 +375,11 @@ async function executeStep(page, step, elementMap) {
   let element = null;
   let locator = null;
   
-  // Handle special Playwright selector formats
-  const isTextSelector = selector.startsWith('text=');
-  const isRoleSelector = selector.startsWith('role=');
-  const isShadowSelector = selector.includes('>>>');
-  const isIframeSelector = selector.includes('iframe >>');
+  // Handle special Playwright selector formats (with null check)
+  const isTextSelector = selector.startsWith?.('text=') || false;
+  const isRoleSelector = selector.startsWith?.('role=') || false;
+  const isShadowSelector = selector.includes?.('>>>') || false;
+  const isIframeSelector = selector.includes?.('iframe >>') || false;
   
   // Strategy 1: Use Playwright locator API for special selectors
   if (isTextSelector || isRoleSelector) {
