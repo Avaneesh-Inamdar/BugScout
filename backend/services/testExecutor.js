@@ -511,27 +511,27 @@ async function executeStep(page, step, elementMap) {
     console.log(`Warning: Element may not be fully visible: ${selector}`);
   }
   
-  // Execute action with force option for stubborn elements
-  // Use locator when element handle is not available (iframe case)
-  const target_el = element || locator;
+  // IMPORTANT: Always use .first() to avoid strict mode violations when multiple elements match
+  // This ensures we interact with the first matching element instead of throwing an error
+  const safeLocator = locator.first();
   
   switch (action) {
     case 'type':
     case 'fill':
       try {
         // First try normal fill with a shorter timeout
-        await locator.fill(value || '', { timeout: 5000 });
+        await safeLocator.fill(value || '', { timeout: 5000 });
       } catch (e) {
         // If fill fails, try clicking first to focus, then fill with force
         console.log(`Fill failed, trying alternative approach for: ${selector}`);
         try {
-          await locator.click({ force: true, timeout: 3000 });
+          await safeLocator.click({ force: true, timeout: 3000 });
           await page.waitForTimeout(200);
-          await locator.fill(value || '', { force: true, timeout: 5000 });
+          await safeLocator.fill(value || '', { force: true, timeout: 5000 });
         } catch (e2) {
           // Last resort: use keyboard input
           console.log(`Force fill failed, using keyboard input for: ${selector}`);
-          await locator.click({ force: true });
+          await safeLocator.click({ force: true });
           await page.keyboard.type(value || '');
         }
       }
@@ -539,36 +539,36 @@ async function executeStep(page, step, elementMap) {
     case 'click':
     case 'tap':
       try {
-        await locator.click({ timeout: 5000 });
+        await safeLocator.click({ timeout: 5000 });
       } catch (e) {
         // If normal click fails, try force click
-        await locator.click({ force: true });
+        await safeLocator.click({ force: true });
       }
       break;
     case 'doubleclick':
     case 'dblclick':
-      await locator.dblclick();
+      await safeLocator.dblclick();
       break;
     case 'rightclick':
-      await locator.click({ button: 'right' });
+      await safeLocator.click({ button: 'right' });
       break;
     case 'hover':
     case 'mouseover':
-      await locator.hover();
+      await safeLocator.hover();
       break;
     case 'select':
     case 'selectOption':
-      await locator.selectOption(value);
+      await safeLocator.selectOption(value);
       break;
     case 'check':
-      await locator.check();
+      await safeLocator.check();
       break;
     case 'uncheck':
-      await locator.uncheck();
+      await safeLocator.uncheck();
       break;
     case 'press':
     case 'key':
-      await locator.press(value || 'Enter');
+      await safeLocator.press(value || 'Enter');
       break;
     case 'wait':
     case 'delay':
@@ -576,17 +576,17 @@ async function executeStep(page, step, elementMap) {
       await page.waitForTimeout(parseInt(value) || 1000);
       break;
     case 'clear':
-      await locator.fill('');
+      await safeLocator.fill('');
       break;
     case 'focus':
-      await locator.focus();
+      await safeLocator.focus();
       break;
     case 'blur':
-      await locator.blur();
+      await safeLocator.blur();
       break;
     case 'scroll':
     case 'scrollIntoView':
-      await locator.scrollIntoViewIfNeeded();
+      await safeLocator.scrollIntoViewIfNeeded();
       break;
     case 'screenshot':
       // Skip - handled separately
@@ -599,7 +599,7 @@ async function executeStep(page, step, elementMap) {
       // Instead of failing, log warning and try click as fallback
       console.warn(`Unknown action "${action}", attempting click as fallback`);
       try {
-        await locator.click({ timeout: 5000 });
+        await safeLocator.click({ timeout: 5000 });
       } catch (e) {
         throw new Error(`Unknown action: ${action}`);
       }
