@@ -3,47 +3,42 @@ const storageService = require('./storageService');
 const bugExplainer = require('./bugExplainer');
 
 async function execute(testRun) {
-  const browser = await chromium.launch({
-    headless: true,
-    args: [
-      '--no-sandbox',
-      '--disable-setuid-sandbox',
-      '--disable-dev-shm-usage',
-      '--disable-gpu',
-      '--single-process',
-      '--no-zygote',
-      '--disable-extensions',
-      '--disable-background-networking',
-      '--disable-sync',
-      '--disable-translate',
-      '--hide-scrollbars',
-      '--mute-audio',
-      '--no-first-run'
-    ]
-  });
-  
   const elementMap = buildElementMap(testRun.pageData?.elements || []);
   const results = [];
   
-  try {
-    // Run all tests sequentially (reusing browser instance)
-    for (const test of testRun.tests) {
+  // Run each test with its own browser instance to avoid context issues
+  for (const test of testRun.tests) {
+    let browser = null;
+    try {
+      browser = await chromium.launch({
+        headless: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--single-process',
+          '--no-zygote',
+          '--disable-extensions',
+          '--disable-background-networking',
+          '--disable-sync',
+          '--disable-translate',
+          '--hide-scrollbars',
+          '--mute-audio',
+          '--no-first-run'
+        ]
+      });
+      
       const result = await executeTest(browser, testRun.url, test, testRun.id, elementMap);
       results.push(result);
-    }
-  } catch (err) {
-    console.error('Test execution error:', err.message);
-    // If we have partial results, keep them; mark remaining as failed
-    const completedIds = results.map(r => r.id);
-    for (const test of testRun.tests) {
-      if (!completedIds.includes(test.id)) {
-        results.push({ ...test, status: 'fail', error: err.message, screenshots: [] });
+    } catch (err) {
+      console.error(`Test ${test.id} error:`, err.message);
+      results.push({ ...test, status: 'fail', error: err.message, screenshots: [] });
+    } finally {
+      if (browser) {
+        try { await browser.close(); } catch (e) { /* ignore */ }
       }
     }
-  } finally {
-    try {
-      await browser.close();
-    } catch (e) { /* ignore */ }
   }
   
   return results;
