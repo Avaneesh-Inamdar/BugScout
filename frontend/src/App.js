@@ -1266,14 +1266,14 @@ function App() {
             )}
 
             {/* Test Results Summary Banner */}
-            {!loading && currentRun.status && currentRun.status !== 'pending_review' && (
-              <div className={`results-summary ${currentRun.status === 'completed' ? 'success' : 'failure'}`}>
+            {!loading && currentRun.status && currentRun.status.toLowerCase() !== 'pending_review' && currentRun.tests?.some(t => t.status === 'pass' || t.status === 'fail') && (
+              <div className={`results-summary ${currentRun.tests?.every(t => t.status === 'pass') ? 'success' : 'failure'}`}>
                 <div className="results-icon">
-                  {currentRun.status === 'completed' ? '✅' : '❌'}
+                  {currentRun.tests?.every(t => t.status === 'pass') ? '✅' : '❌'}
                 </div>
                 <div className="results-info">
                   <h3>
-                    {currentRun.status === 'completed' 
+                    {currentRun.tests?.every(t => t.status === 'pass')
                       ? 'All Tests Passed!' 
                       : `${currentRun.tests?.filter(t => t.status === 'fail').length || 0} Test${currentRun.tests?.filter(t => t.status === 'fail').length !== 1 ? 's' : ''} Failed`}
                   </h3>
