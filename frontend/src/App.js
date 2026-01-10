@@ -331,251 +331,281 @@ function App() {
       }
     };
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
+    const blobUrl = URL.createObjectURL(blob);
     const a = document.createElement('a');
-    a.href = url;
+    a.href = blobUrl;
     a.download = `test-report-${currentRun.id}.json`;
     a.click();
   };
 
-  const exportToPDF = async () => {
-    if (!currentRun) return;
-    
-    const doc = new jsPDF();
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const margin = 15;
-    let yPos = 20;
-    
-    // Helper to add new page if needed
-    const checkPageBreak = (height = 30) => {
-      if (yPos + height > 280) {
-        doc.addPage();
-        yPos = 20;
-      }
-    };
-    
-    // Title
-    doc.setFontSize(24);
-    doc.setTextColor(79, 70, 229); // Primary color
-    doc.text('BugScout Test Report', margin, yPos);
-    yPos += 15;
-    
-    // URL and Date
-    doc.setFontSize(10);
-    doc.setTextColor(100, 100, 100);
-    doc.text(`URL: ${currentRun.url}`, margin, yPos);
-    yPos += 6;
-    doc.text(`Generated: ${new Date().toLocaleString()}`, margin, yPos);
-    yPos += 6;
-    doc.text(`Test Run ID: ${currentRun.id}`, margin, yPos);
-    yPos += 15;
-    
-    // Summary Box
-    const passed = currentRun.tests?.filter(t => t.status === 'pass').length || 0;
-    const failed = currentRun.tests?.filter(t => t.status === 'fail').length || 0;
-    const total = currentRun.tests?.length || 0;
-    const pending = total - passed - failed;
-    
-    doc.setFillColor(248, 250, 252);
-    doc.roundedRect(margin, yPos, pageWidth - 2 * margin, 30, 3, 3, 'F');
-    
-    doc.setFontSize(12);
-    doc.setTextColor(30, 30, 30);
-    doc.text('Test Summary', margin + 5, yPos + 8);
-    
-    doc.setFontSize(20);
-    // Total
-    doc.setTextColor(79, 70, 229);
-    doc.text(`${total}`, margin + 10, yPos + 22);
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Total', margin + 10, yPos + 27);
-    
-    // Passed
-    doc.setFontSize(20);
-    doc.setTextColor(34, 197, 94);
-    doc.text(`${passed}`, margin + 50, yPos + 22);
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Passed', margin + 50, yPos + 27);
-    
-    // Failed
-    doc.setFontSize(20);
-    doc.setTextColor(239, 68, 68);
-    doc.text(`${failed}`, margin + 90, yPos + 22);
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Failed', margin + 90, yPos + 27);
-    
-    // Pending
-    doc.setFontSize(20);
-    doc.setTextColor(234, 179, 8);
-    doc.text(`${pending}`, margin + 130, yPos + 22);
-    doc.setFontSize(9);
-    doc.setTextColor(100, 100, 100);
-    doc.text('Pending', margin + 130, yPos + 27);
-    
-    yPos += 40;
-    
-    // Page Analysis (if available)
-    if (currentRun.pageAnalysis) {
-      checkPageBreak(40);
-      doc.setFontSize(14);
-      doc.setTextColor(30, 30, 30);
-      doc.text('🧠 AI Page Analysis', margin, yPos);
-      yPos += 8;
-      
-      doc.setFontSize(10);
-      doc.setTextColor(60, 60, 60);
-      if (currentRun.pageAnalysis.purpose) {
-        doc.text(`Purpose: ${currentRun.pageAnalysis.purpose}`, margin, yPos);
-        yPos += 6;
-      }
-      if (currentRun.pageAnalysis.user_goal) {
-        doc.text(`User Goal: ${currentRun.pageAnalysis.user_goal}`, margin, yPos);
-        yPos += 6;
-      }
-      if (currentRun.pageAnalysis.main_features?.length > 0) {
-        doc.text(`Features: ${currentRun.pageAnalysis.main_features.join(', ')}`, margin, yPos);
-        yPos += 6;
-      }
-      yPos += 10;
+  const exportToPDF = () => {
+    if (!currentRun) {
+      alert('No test run to export');
+      return;
     }
     
-    // Detected Flows
-    if (currentRun.detectedFlows?.length > 0) {
-      checkPageBreak(20);
-      doc.setFontSize(12);
+    try {
+      const doc = new jsPDF();
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const margin = 15;
+      let yPos = 20;
+      
+      // Helper to add new page if needed
+      const checkPageBreak = (height = 30) => {
+        if (yPos + height > 280) {
+          doc.addPage();
+          yPos = 20;
+        }
+      };
+      
+      // Helper to safely get text
+      const safeText = (text, maxLen = 100) => {
+        if (!text) return '';
+        return String(text).substring(0, maxLen);
+      };
+      
+      // Title
+      doc.setFontSize(24);
       doc.setTextColor(79, 70, 229);
-      doc.text(`Detected Flows: ${currentRun.detectedFlows.join(' → ')}`, margin, yPos);
+      doc.text('BugScout Test Report', margin, yPos);
       yPos += 15;
-    }
-    
-    // Test Details
-    doc.setFontSize(16);
-    doc.setTextColor(30, 30, 30);
-    doc.text('Test Details', margin, yPos);
-    yPos += 10;
-    
-    // Each test
-    currentRun.tests?.forEach((test, idx) => {
-      checkPageBreak(60);
       
-      // Test header with status
-      const statusColor = test.status === 'pass' ? [34, 197, 94] : 
-                          test.status === 'fail' ? [239, 68, 68] : [234, 179, 8];
-      const statusIcon = test.status === 'pass' ? '✓' : test.status === 'fail' ? '✗' : '○';
+      // URL and Date
+      doc.setFontSize(10);
+      doc.setTextColor(100, 100, 100);
+      doc.text('URL: ' + safeText(currentRun.url, 80), margin, yPos);
+      yPos += 6;
+      doc.text('Generated: ' + new Date().toLocaleString(), margin, yPos);
+      yPos += 6;
+      doc.text('Test Run ID: ' + safeText(currentRun.id, 40), margin, yPos);
+      yPos += 15;
       
-      doc.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
-      doc.circle(margin + 3, yPos - 2, 3, 'F');
+      // Summary Box
+      const tests = currentRun.tests || [];
+      const passed = tests.filter(t => t.status === 'pass').length;
+      const failed = tests.filter(t => t.status === 'fail').length;
+      const total = tests.length;
+      const pending = total - passed - failed;
+      
+      doc.setFillColor(248, 250, 252);
+      doc.roundedRect(margin, yPos, pageWidth - 2 * margin, 30, 3, 3, 'F');
       
       doc.setFontSize(12);
       doc.setTextColor(30, 30, 30);
-      doc.text(`${idx + 1}. ${test.name}`, margin + 10, yPos);
-      yPos += 6;
+      doc.text('Test Summary', margin + 5, yPos + 8);
       
-      // Test type and status
+      // Total
+      doc.setFontSize(20);
+      doc.setTextColor(79, 70, 229);
+      doc.text(String(total), margin + 10, yPos + 22);
       doc.setFontSize(9);
       doc.setTextColor(100, 100, 100);
-      doc.text(`Type: ${test.type || 'custom'} | Status: ${test.status || 'pending'}`, margin + 10, yPos);
-      yPos += 8;
+      doc.text('Total', margin + 10, yPos + 27);
       
-      // Steps table
-      if (test.steps?.length > 0) {
-        const stepsData = test.steps.map((step, sIdx) => [
-          sIdx + 1,
-          step.action || '',
-          (step.target || '').substring(0, 40) + ((step.target || '').length > 40 ? '...' : ''),
-          (step.value || '').substring(0, 25) + ((step.value || '').length > 25 ? '...' : '')
-        ]);
-        
-        doc.autoTable({
-          startY: yPos,
-          head: [['#', 'Action', 'Target', 'Value']],
-          body: stepsData,
-          margin: { left: margin + 5 },
-          tableWidth: pageWidth - 2 * margin - 10,
-          styles: { fontSize: 8, cellPadding: 2 },
-          headStyles: { fillColor: [79, 70, 229], textColor: 255 },
-          alternateRowStyles: { fillColor: [248, 250, 252] },
-          columnStyles: {
-            0: { cellWidth: 10 },
-            1: { cellWidth: 25 },
-            2: { cellWidth: 70 },
-            3: { cellWidth: 40 }
-          }
-        });
-        
-        yPos = doc.lastAutoTable.finalY + 5;
-      }
+      // Passed
+      doc.setFontSize(20);
+      doc.setTextColor(34, 197, 94);
+      doc.text(String(passed), margin + 50, yPos + 22);
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Passed', margin + 50, yPos + 27);
       
-      // Error message if failed
-      if (test.error) {
-        checkPageBreak(20);
-        doc.setFillColor(254, 242, 242);
-        doc.roundedRect(margin + 5, yPos, pageWidth - 2 * margin - 10, 15, 2, 2, 'F');
-        doc.setFontSize(9);
-        doc.setTextColor(185, 28, 28);
-        const errorText = test.error.substring(0, 100) + (test.error.length > 100 ? '...' : '');
-        doc.text(`Error: ${errorText}`, margin + 8, yPos + 9);
-        yPos += 20;
-      }
+      // Failed
+      doc.setFontSize(20);
+      doc.setTextColor(239, 68, 68);
+      doc.text(String(failed), margin + 90, yPos + 22);
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Failed', margin + 90, yPos + 27);
       
-      // AI Explanation if available
-      if (test.explanation) {
-        checkPageBreak(30);
-        doc.setFillColor(239, 246, 255);
-        doc.roundedRect(margin + 5, yPos, pageWidth - 2 * margin - 10, 25, 2, 2, 'F');
-        doc.setFontSize(9);
-        doc.setTextColor(30, 64, 175);
-        doc.text('🤖 AI Analysis:', margin + 8, yPos + 7);
-        doc.setTextColor(60, 60, 60);
-        const summaryText = (test.explanation.summary || '').substring(0, 120);
-        doc.text(summaryText, margin + 8, yPos + 14, { maxWidth: pageWidth - 2 * margin - 20 });
-        if (test.explanation.suggestedFix) {
-          doc.text(`Fix: ${test.explanation.suggestedFix.substring(0, 80)}`, margin + 8, yPos + 21, { maxWidth: pageWidth - 2 * margin - 20 });
-        }
-        yPos += 30;
-      }
+      // Pending
+      doc.setFontSize(20);
+      doc.setTextColor(234, 179, 8);
+      doc.text(String(pending), margin + 130, yPos + 22);
+      doc.setFontSize(9);
+      doc.setTextColor(100, 100, 100);
+      doc.text('Pending', margin + 130, yPos + 27);
       
-      // Flow steps if available
-      if (test.flowSteps?.length > 0) {
-        checkPageBreak(20);
-        doc.setFontSize(10);
-        doc.setTextColor(79, 70, 229);
-        doc.text(`📸 Flow Steps (${test.flowSteps.length} captured)`, margin + 5, yPos);
+      yPos += 40;
+      
+      // Page Analysis (if available)
+      if (currentRun.pageAnalysis) {
+        checkPageBreak(40);
+        doc.setFontSize(14);
+        doc.setTextColor(30, 30, 30);
+        doc.text('[AI] Page Analysis', margin, yPos);
         yPos += 8;
         
-        test.flowSteps.slice(0, 5).forEach((flowStep, fsIdx) => {
-          checkPageBreak(10);
-          doc.setFontSize(8);
-          doc.setTextColor(100, 100, 100);
-          const stepDesc = flowStep.description || `${flowStep.action} on ${flowStep.target}`;
-          doc.text(`  ${fsIdx + 1}. ${stepDesc.substring(0, 80)}`, margin + 8, yPos);
-          yPos += 5;
-        });
-        if (test.flowSteps.length > 5) {
-          doc.text(`  ... and ${test.flowSteps.length - 5} more steps`, margin + 8, yPos);
-          yPos += 5;
+        doc.setFontSize(10);
+        doc.setTextColor(60, 60, 60);
+        if (currentRun.pageAnalysis.purpose) {
+          doc.text('Purpose: ' + safeText(currentRun.pageAnalysis.purpose, 80), margin, yPos);
+          yPos += 6;
         }
-        yPos += 5;
+        if (currentRun.pageAnalysis.user_goal) {
+          doc.text('User Goal: ' + safeText(currentRun.pageAnalysis.user_goal, 80), margin, yPos);
+          yPos += 6;
+        }
+        if (currentRun.pageAnalysis.main_features && currentRun.pageAnalysis.main_features.length > 0) {
+          doc.text('Features: ' + currentRun.pageAnalysis.main_features.join(', '), margin, yPos);
+          yPos += 6;
+        }
+        yPos += 10;
       }
       
+      // Detected Flows
+      if (currentRun.detectedFlows && currentRun.detectedFlows.length > 0) {
+        checkPageBreak(20);
+        doc.setFontSize(12);
+        doc.setTextColor(79, 70, 229);
+        doc.text('Detected Flows: ' + currentRun.detectedFlows.join(' > '), margin, yPos);
+        yPos += 15;
+      }
+      
+      // Test Details Header
+      doc.setFontSize(16);
+      doc.setTextColor(30, 30, 30);
+      doc.text('Test Details', margin, yPos);
       yPos += 10;
-    });
-    
-    // Footer on each page
-    const pageCount = doc.internal.getNumberOfPages();
-    for (let i = 1; i <= pageCount; i++) {
-      doc.setPage(i);
-      doc.setFontSize(8);
-      doc.setTextColor(150, 150, 150);
-      doc.text(`BugScout - Page ${i} of ${pageCount}`, pageWidth / 2, 290, { align: 'center' });
+      
+      // Each test
+      tests.forEach((test, idx) => {
+        checkPageBreak(60);
+        
+        // Test header with status indicator
+        const statusColor = test.status === 'pass' ? [34, 197, 94] : 
+                            test.status === 'fail' ? [239, 68, 68] : [234, 179, 8];
+        
+        doc.setFillColor(statusColor[0], statusColor[1], statusColor[2]);
+        doc.circle(margin + 3, yPos - 2, 3, 'F');
+        
+        doc.setFontSize(12);
+        doc.setTextColor(30, 30, 30);
+        const testName = safeText(test.name, 60);
+        doc.text((idx + 1) + '. ' + testName, margin + 10, yPos);
+        yPos += 6;
+        
+        // Test type and status
+        doc.setFontSize(9);
+        doc.setTextColor(100, 100, 100);
+        doc.text('Type: ' + (test.type || 'custom') + ' | Status: ' + (test.status || 'pending'), margin + 10, yPos);
+        yPos += 8;
+        
+        // Steps table
+        if (test.steps && test.steps.length > 0) {
+          const stepsData = test.steps.map((step, sIdx) => [
+            String(sIdx + 1),
+            safeText(step.action, 15),
+            safeText(step.target, 40),
+            safeText(step.value, 25)
+          ]);
+          
+          doc.autoTable({
+            startY: yPos,
+            head: [['#', 'Action', 'Target', 'Value']],
+            body: stepsData,
+            margin: { left: margin + 5 },
+            tableWidth: pageWidth - 2 * margin - 10,
+            styles: { fontSize: 8, cellPadding: 2 },
+            headStyles: { fillColor: [79, 70, 229], textColor: 255 },
+            alternateRowStyles: { fillColor: [248, 250, 252] },
+            columnStyles: {
+              0: { cellWidth: 10 },
+              1: { cellWidth: 25 },
+              2: { cellWidth: 70 },
+              3: { cellWidth: 40 }
+            }
+          });
+          
+          yPos = doc.lastAutoTable.finalY + 5;
+        }
+        
+        // Error message if failed
+        if (test.error) {
+          checkPageBreak(20);
+          doc.setFillColor(254, 242, 242);
+          doc.roundedRect(margin + 5, yPos, pageWidth - 2 * margin - 10, 15, 2, 2, 'F');
+          doc.setFontSize(9);
+          doc.setTextColor(185, 28, 28);
+          doc.text('Error: ' + safeText(test.error, 90), margin + 8, yPos + 9);
+          yPos += 20;
+        }
+        
+        // AI Explanation if available
+        if (test.explanation) {
+          checkPageBreak(30);
+          doc.setFillColor(239, 246, 255);
+          doc.roundedRect(margin + 5, yPos, pageWidth - 2 * margin - 10, 25, 2, 2, 'F');
+          doc.setFontSize(9);
+          doc.setTextColor(30, 64, 175);
+          doc.text('[AI] Analysis:', margin + 8, yPos + 7);
+          doc.setTextColor(60, 60, 60);
+          if (test.explanation.summary) {
+            doc.text(safeText(test.explanation.summary, 100), margin + 8, yPos + 14, { maxWidth: pageWidth - 2 * margin - 20 });
+          }
+          if (test.explanation.suggestedFix) {
+            doc.text('Fix: ' + safeText(test.explanation.suggestedFix, 70), margin + 8, yPos + 21, { maxWidth: pageWidth - 2 * margin - 20 });
+          }
+          yPos += 30;
+        }
+        
+        // Flow steps if available (for detailed flow mode)
+        if (test.flowSteps && test.flowSteps.length > 0) {
+          checkPageBreak(30);
+          doc.setFontSize(10);
+          doc.setTextColor(79, 70, 229);
+          doc.text('[Flow] ' + test.flowSteps.length + ' steps captured', margin + 5, yPos);
+          yPos += 8;
+          
+          // Show flow steps in a table
+          const flowData = test.flowSteps.slice(0, 10).map((fs, fsIdx) => [
+            String(fsIdx + 1),
+            safeText(fs.action, 12),
+            safeText(fs.description || fs.target, 50),
+            fs.status === 'pass' ? 'OK' : fs.status === 'fail' ? 'FAIL' : '-'
+          ]);
+          
+          doc.autoTable({
+            startY: yPos,
+            head: [['#', 'Action', 'Description', 'Status']],
+            body: flowData,
+            margin: { left: margin + 5 },
+            tableWidth: pageWidth - 2 * margin - 10,
+            styles: { fontSize: 7, cellPadding: 1.5 },
+            headStyles: { fillColor: [99, 102, 241], textColor: 255 },
+            alternateRowStyles: { fillColor: [248, 250, 252] }
+          });
+          
+          yPos = doc.lastAutoTable.finalY + 5;
+          
+          if (test.flowSteps.length > 10) {
+            doc.setFontSize(8);
+            doc.setTextColor(100, 100, 100);
+            doc.text('... and ' + (test.flowSteps.length - 10) + ' more steps', margin + 8, yPos);
+            yPos += 8;
+          }
+        }
+        
+        yPos += 10;
+      });
+      
+      // Footer on each page
+      const pageCount = doc.internal.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(8);
+        doc.setTextColor(150, 150, 150);
+        doc.text('BugScout - Page ' + i + ' of ' + pageCount, pageWidth / 2, 290, { align: 'center' });
+      }
+      
+      // Save the PDF
+      const filename = 'bugscout-report-' + (currentRun.id || 'test').substring(0, 8) + '-' + new Date().toISOString().split('T')[0] + '.pdf';
+      doc.save(filename);
+      
+    } catch (err) {
+      console.error('PDF export error:', err);
+      alert('Failed to export PDF: ' + err.message);
     }
-    
-    // Save the PDF
-    const filename = `bugscout-report-${currentRun.id.substring(0, 8)}-${new Date().toISOString().split('T')[0]}.pdf`;
-    doc.save(filename);
   };
 
   const runAccessibilityAudit = async () => {
