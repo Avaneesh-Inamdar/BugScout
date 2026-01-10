@@ -177,6 +177,9 @@ async function executeStep(page, step, elementMap) {
         await element.click({ force: true });
       }
       break;
+    case 'hover':
+      await element.hover();
+      break;
     case 'select':
       await element.selectOption(value);
       break;
@@ -185,6 +188,12 @@ async function executeStep(page, step, elementMap) {
       break;
     case 'uncheck':
       await element.uncheck();
+      break;
+    case 'press':
+      await page.keyboard.press(value || 'Enter');
+      break;
+    case 'wait':
+      await page.waitForTimeout(parseInt(value) || 1000);
       break;
     default:
       throw new Error(`Unknown action: ${action}`);
