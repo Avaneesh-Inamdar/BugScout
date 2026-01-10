@@ -48,13 +48,6 @@ Get detailed performance metrics for any webpage:
 - Time to First Byte (TTFB)
 - Resource breakdown and optimization suggestions
 
-### 🎬 Flow Recorder
-Record user interactions and convert them into automated tests:
-- Click tracking
-- Form input capture
-- Navigation recording
-- Exportable test scripts
-
 ### 💡 AI Test Suggestions
 Get intelligent suggestions for additional test cases based on your page content:
 - Security tests
@@ -151,11 +144,10 @@ Visit [bugscout.web.app](https://bugscout.web.app) and sign in with your Google 
 2. Enter URL and click **Analyze**
 3. View Core Web Vitals and optimization suggestions
 
-#### Flow Recorder
-1. Go to **Recorder** tab
-2. Enter URL and click **Start Recording**
-3. Interact with the page in the opened browser
-4. Click **Stop** to save the recorded flow as a test
+#### Share Reports
+1. Open a completed test run in **Editor**
+2. Click **Share** button
+3. Copy the generated link to share with your team
 
 ---
 
@@ -222,8 +214,6 @@ BugScout/
 │       ├── bugExplainer.js    # AI failure explanations
 │       ├── accessibilityAuditor.js
 │       ├── performanceAnalyzer.js
-│       ├── flowRecorder.js    # User interaction recorder
-│       ├── testSuggester.js   # AI test suggestions
 │       ├── visualDiff.js      # Screenshot comparison
 │       ├── apiKeyManager.js   # API key rotation
 │       ├── firestoreService.js
