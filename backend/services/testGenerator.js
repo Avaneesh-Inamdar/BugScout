@@ -1,5 +1,8 @@
 const apiKeyManager = require('./apiKeyManager');
 
+// Supported actions in testExecutor
+const SUPPORTED_ACTIONS = ['click', 'type', 'fill', 'hover', 'select', 'check', 'uncheck', 'press', 'wait', 'clear', 'focus', 'doubleclick', 'rightclick', 'scroll'];
+
 const GROQ_PROMPT = `You are an instruction-following system.
 Given UI element metadata and page text, generate a QA test plan.
 
@@ -32,6 +35,7 @@ Rules:
 - At least 1 must be negative
 - CRITICAL: Use the actual CSS selectors from the input elements, not internal IDs like e0, e1, e2
 - If an element has selector "input[type=password]", use that exact string as the target
+- ONLY use these actions: click, type, hover, select, check, uncheck, press, wait, clear, focus
 - No explanations, only JSON
 
 Input:
@@ -114,12 +118,40 @@ async function generateWithAI(pageData) {
       steps: test.steps.map(step => ({
         ...step,
         // If target is an internal ID, replace with real selector
-        target: idToSelector[step.target] || step.target
+        target: idToSelector[step.target] || step.target,
+        // Normalize action to supported ones
+        action: normalizeAction(step.action)
       }))
     }));
   }
   
   return result;
+}
+
+// Normalize action names to supported ones
+function normalizeAction(action) {
+  const actionMap = {
+    'input': 'type',
+    'enter': 'type',
+    'fill': 'type',
+    'tap': 'click',
+    'submit': 'click',
+    'mouseover': 'hover',
+    'mouseenter': 'hover',
+    'dblclick': 'doubleclick',
+    'selectOption': 'select',
+    'choose': 'select',
+    'delay': 'wait',
+    'sleep': 'wait',
+    'pause': 'wait',
+    'key': 'press',
+    'keyboard': 'press',
+    'scrollIntoView': 'scroll',
+    'scrollTo': 'scroll'
+  };
+  
+  const normalized = action?.toLowerCase() || 'click';
+  return actionMap[normalized] || normalized;
 }
 
 function generateWithRules(pageData) {
