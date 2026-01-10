@@ -4,22 +4,36 @@ const admin = require('firebase-admin');
 if (!admin.apps.length) {
   let credential;
   
-  // Option 1: Service account JSON string from env var (for Render/cloud deployment)
-  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+  // Option 1: Individual environment variables (recommended for Azure/cloud)
+  if (process.env.FIREBASE_PROJECT_ID && process.env.FIREBASE_CLIENT_EMAIL && process.env.FIREBASE_PRIVATE_KEY) {
+    const serviceAccount = {
+      type: 'service_account',
+      project_id: process.env.FIREBASE_PROJECT_ID,
+      private_key: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, '\n'),
+      client_email: process.env.FIREBASE_CLIENT_EMAIL
+    };
+    credential = admin.credential.cert(serviceAccount);
+    console.log('Using individual Firebase env vars');
+  }
+  // Option 2: Service account JSON string from env var (for Render/cloud deployment)
+  else if (process.env.FIREBASE_SERVICE_ACCOUNT) {
     const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
     credential = admin.credential.cert(serviceAccount);
+    console.log('Using FIREBASE_SERVICE_ACCOUNT JSON');
   } 
-  // Option 2: Service account file path
+  // Option 3: Service account file path
   else if (process.env.GOOGLE_APPLICATION_CREDENTIALS) {
     credential = admin.credential.applicationDefault();
+    console.log('Using GOOGLE_APPLICATION_CREDENTIALS file');
   }
-  // Option 3: Default credentials (for local dev with gcloud auth)
+  // Option 4: Default credentials (for local dev with gcloud auth)
   else {
     credential = admin.credential.applicationDefault();
+    console.log('Using default credentials');
   }
 
   admin.initializeApp({
-    projectId: 'gdg-hackathon-6fc99',
+    projectId: process.env.FIREBASE_PROJECT_ID || 'gdg-hackathon-6fc99',
     credential
   });
 }
