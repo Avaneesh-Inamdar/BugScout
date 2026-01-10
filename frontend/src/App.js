@@ -1259,8 +1259,8 @@ function App() {
             {loading && (
               <div className="loading-overlay">
                 <div className="loading-content">
-                  <span className="spinner large"></span>
-                  <p>Running tests... This may take a minute.</p>
+                  <div className="loading-spinner"></div>
+                  <p>Running tests<span className="loading-dots"><span></span><span></span><span></span></span></p>
                 </div>
               </div>
             )}
