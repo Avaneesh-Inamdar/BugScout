@@ -1523,6 +1523,7 @@ function App() {
                 <button className="btn btn-outline" onClick={exportToPDF}>
                   📄 Export PDF
                 </button>
+                {/* Visual Diff button hidden for now
                 <button 
                   className="btn btn-outline" 
                   onClick={runVisualDiff}
@@ -1530,6 +1531,7 @@ function App() {
                 >
                   {diffLoading ? <span className="spinner"></span> : '🔍'} Visual Diff
                 </button>
+                */}
                 <button className="btn btn-secondary" onClick={addCustomTest}>
                   ➕ Add Test
                 </button>
