@@ -136,16 +136,10 @@ async function inspect(url) {
         '[role="menuitem"]',
         '[onclick]',
         '[ng-click]',
-        '[v-on\\:click]',
-        '[@click]',
         '[data-action]',
         '[data-click]',
         '.btn',
         '.button',
-        '[class*="btn"]',
-        '[class*="button"]',
-        '[class*="input"]',
-        '[class*="field"]',
         '[tabindex="0"]',
         '[contenteditable="true"]'
       ].join(', ');
