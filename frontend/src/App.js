@@ -1,7 +1,6 @@
 import React, { useState, useEffect, Component } from 'react';
 import { auth, signInWithGoogle, logOut, onAuthStateChanged } from './firebase';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import jsPDF from 'jspdf';
 
 const API_URL = process.env.REACT_APP_API_URL || '';
 
@@ -364,6 +363,30 @@ function App() {
         return String(text).substring(0, maxLen);
       };
       
+      // Helper to draw a simple table row
+      const drawTableRow = (cols, colWidths, isHeader = false) => {
+        const rowHeight = 8;
+        checkPageBreak(rowHeight + 5);
+        
+        if (isHeader) {
+          doc.setFillColor(79, 70, 229);
+          doc.rect(margin, yPos - 5, pageWidth - 2 * margin, rowHeight, 'F');
+          doc.setTextColor(255, 255, 255);
+          doc.setFontSize(8);
+        } else {
+          doc.setTextColor(60, 60, 60);
+          doc.setFontSize(7);
+        }
+        
+        let xPos = margin + 2;
+        cols.forEach((col, i) => {
+          doc.text(safeText(col, colWidths[i] / 2), xPos, yPos);
+          xPos += colWidths[i];
+        });
+        
+        yPos += rowHeight;
+      };
+      
       // Title
       doc.setFontSize(24);
       doc.setTextColor(79, 70, 229);
@@ -394,37 +417,16 @@ function App() {
       doc.setTextColor(30, 30, 30);
       doc.text('Test Summary', margin + 5, yPos + 8);
       
-      // Total
-      doc.setFontSize(20);
+      // Stats
+      doc.setFontSize(16);
       doc.setTextColor(79, 70, 229);
-      doc.text(String(total), margin + 10, yPos + 22);
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Total', margin + 10, yPos + 27);
-      
-      // Passed
-      doc.setFontSize(20);
+      doc.text(String(total) + ' Total', margin + 10, yPos + 22);
       doc.setTextColor(34, 197, 94);
-      doc.text(String(passed), margin + 50, yPos + 22);
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Passed', margin + 50, yPos + 27);
-      
-      // Failed
-      doc.setFontSize(20);
+      doc.text(String(passed) + ' Passed', margin + 50, yPos + 22);
       doc.setTextColor(239, 68, 68);
-      doc.text(String(failed), margin + 90, yPos + 22);
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Failed', margin + 90, yPos + 27);
-      
-      // Pending
-      doc.setFontSize(20);
+      doc.text(String(failed) + ' Failed', margin + 100, yPos + 22);
       doc.setTextColor(234, 179, 8);
-      doc.text(String(pending), margin + 130, yPos + 22);
-      doc.setFontSize(9);
-      doc.setTextColor(100, 100, 100);
-      doc.text('Pending', margin + 130, yPos + 27);
+      doc.text(String(pending) + ' Pending', margin + 145, yPos + 22);
       
       yPos += 40;
       
@@ -444,10 +446,6 @@ function App() {
         }
         if (currentRun.pageAnalysis.user_goal) {
           doc.text('User Goal: ' + safeText(currentRun.pageAnalysis.user_goal, 80), margin, yPos);
-          yPos += 6;
-        }
-        if (currentRun.pageAnalysis.main_features && currentRun.pageAnalysis.main_features.length > 0) {
-          doc.text('Features: ' + currentRun.pageAnalysis.main_features.join(', '), margin, yPos);
           yPos += 6;
         }
         yPos += 10;
@@ -470,7 +468,7 @@ function App() {
       
       // Each test
       tests.forEach((test, idx) => {
-        checkPageBreak(60);
+        checkPageBreak(50);
         
         // Test header with status indicator
         const statusColor = test.status === 'pass' ? [34, 197, 94] : 
@@ -489,104 +487,77 @@ function App() {
         doc.setFontSize(9);
         doc.setTextColor(100, 100, 100);
         doc.text('Type: ' + (test.type || 'custom') + ' | Status: ' + (test.status || 'pending'), margin + 10, yPos);
-        yPos += 8;
+        yPos += 10;
         
-        // Steps table
+        // Steps as simple list
         if (test.steps && test.steps.length > 0) {
-          const stepsData = test.steps.map((step, sIdx) => [
-            String(sIdx + 1),
-            safeText(step.action, 15),
-            safeText(step.target, 40),
-            safeText(step.value, 25)
-          ]);
+          doc.setFontSize(9);
+          doc.setTextColor(79, 70, 229);
+          doc.text('Steps:', margin + 5, yPos);
+          yPos += 6;
           
-          autoTable(doc, {
-            startY: yPos,
-            head: [['#', 'Action', 'Target', 'Value']],
-            body: stepsData,
-            margin: { left: margin + 5 },
-            tableWidth: pageWidth - 2 * margin - 10,
-            styles: { fontSize: 8, cellPadding: 2 },
-            headStyles: { fillColor: [79, 70, 229], textColor: 255 },
-            alternateRowStyles: { fillColor: [248, 250, 252] },
-            columnStyles: {
-              0: { cellWidth: 10 },
-              1: { cellWidth: 25 },
-              2: { cellWidth: 70 },
-              3: { cellWidth: 40 }
+          test.steps.slice(0, 10).forEach((step, sIdx) => {
+            checkPageBreak(8);
+            doc.setFontSize(8);
+            doc.setTextColor(60, 60, 60);
+            const stepText = (sIdx + 1) + '. ' + (step.action || '') + ' - ' + safeText(step.target, 35);
+            doc.text(stepText, margin + 8, yPos);
+            if (step.value) {
+              doc.setTextColor(100, 100, 100);
+              doc.text(' [' + safeText(step.value, 20) + ']', margin + 120, yPos);
             }
+            yPos += 5;
           });
           
-          yPos = doc.lastAutoTable.finalY + 5;
+          if (test.steps.length > 10) {
+            doc.setTextColor(100, 100, 100);
+            doc.text('... and ' + (test.steps.length - 10) + ' more steps', margin + 8, yPos);
+            yPos += 5;
+          }
+          yPos += 5;
         }
         
         // Error message if failed
         if (test.error) {
-          checkPageBreak(20);
+          checkPageBreak(15);
           doc.setFillColor(254, 242, 242);
-          doc.roundedRect(margin + 5, yPos, pageWidth - 2 * margin - 10, 15, 2, 2, 'F');
-          doc.setFontSize(9);
+          doc.roundedRect(margin + 5, yPos, pageWidth - 2 * margin - 10, 12, 2, 2, 'F');
+          doc.setFontSize(8);
           doc.setTextColor(185, 28, 28);
-          doc.text('Error: ' + safeText(test.error, 90), margin + 8, yPos + 9);
-          yPos += 20;
-        }
-        
-        // AI Explanation if available
-        if (test.explanation) {
-          checkPageBreak(30);
-          doc.setFillColor(239, 246, 255);
-          doc.roundedRect(margin + 5, yPos, pageWidth - 2 * margin - 10, 25, 2, 2, 'F');
-          doc.setFontSize(9);
-          doc.setTextColor(30, 64, 175);
-          doc.text('[AI] Analysis:', margin + 8, yPos + 7);
-          doc.setTextColor(60, 60, 60);
-          if (test.explanation.summary) {
-            doc.text(safeText(test.explanation.summary, 100), margin + 8, yPos + 14, { maxWidth: pageWidth - 2 * margin - 20 });
-          }
-          if (test.explanation.suggestedFix) {
-            doc.text('Fix: ' + safeText(test.explanation.suggestedFix, 70), margin + 8, yPos + 21, { maxWidth: pageWidth - 2 * margin - 20 });
-          }
-          yPos += 30;
+          doc.text('Error: ' + safeText(test.error, 90), margin + 8, yPos + 8);
+          yPos += 18;
         }
         
         // Flow steps if available (for detailed flow mode)
         if (test.flowSteps && test.flowSteps.length > 0) {
-          checkPageBreak(30);
-          doc.setFontSize(10);
+          checkPageBreak(20);
+          doc.setFontSize(9);
           doc.setTextColor(79, 70, 229);
-          doc.text('[Flow] ' + test.flowSteps.length + ' steps captured', margin + 5, yPos);
-          yPos += 8;
+          doc.text('[Flow] ' + test.flowSteps.length + ' steps captured:', margin + 5, yPos);
+          yPos += 6;
           
-          // Show flow steps in a table
-          const flowData = test.flowSteps.slice(0, 10).map((fs, fsIdx) => [
-            String(fsIdx + 1),
-            safeText(fs.action, 12),
-            safeText(fs.description || fs.target, 50),
-            fs.status === 'pass' ? 'OK' : fs.status === 'fail' ? 'FAIL' : '-'
-          ]);
-          
-          autoTable(doc, {
-            startY: yPos,
-            head: [['#', 'Action', 'Description', 'Status']],
-            body: flowData,
-            margin: { left: margin + 5 },
-            tableWidth: pageWidth - 2 * margin - 10,
-            styles: { fontSize: 7, cellPadding: 1.5 },
-            headStyles: { fillColor: [99, 102, 241], textColor: 255 },
-            alternateRowStyles: { fillColor: [248, 250, 252] }
+          test.flowSteps.slice(0, 8).forEach((fs, fsIdx) => {
+            checkPageBreak(6);
+            doc.setFontSize(7);
+            const statusIcon = fs.status === 'pass' ? '[OK]' : fs.status === 'fail' ? '[FAIL]' : '[-]';
+            doc.setTextColor(fs.status === 'pass' ? 34 : fs.status === 'fail' ? 239 : 100, 
+                            fs.status === 'pass' ? 197 : fs.status === 'fail' ? 68 : 100, 
+                            fs.status === 'pass' ? 94 : fs.status === 'fail' ? 68 : 100);
+            doc.text(statusIcon, margin + 8, yPos);
+            doc.setTextColor(60, 60, 60);
+            doc.text(safeText(fs.description || fs.action + ' on ' + fs.target, 70), margin + 22, yPos);
+            yPos += 5;
           });
           
-          yPos = doc.lastAutoTable.finalY + 5;
-          
-          if (test.flowSteps.length > 10) {
-            doc.setFontSize(8);
+          if (test.flowSteps.length > 8) {
             doc.setTextColor(100, 100, 100);
-            doc.text('... and ' + (test.flowSteps.length - 10) + ' more steps', margin + 8, yPos);
-            yPos += 8;
+            doc.text('... and ' + (test.flowSteps.length - 8) + ' more steps', margin + 8, yPos);
+            yPos += 5;
           }
+          yPos += 5;
         }
         
-        yPos += 10;
+        yPos += 8;
       });
       
       // Footer on each page
