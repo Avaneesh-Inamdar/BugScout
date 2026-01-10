@@ -1,9 +1,175 @@
 const { chromium } = require('playwright');
 
 /**
- * Analyze page performance metrics
+ * Analyze page performance using Google PageSpeed Insights API (primary)
+ * with Playwright fallback for when API is unavailable
  */
 async function analyze(url) {
+  // Try PageSpeed Insights API first (more accurate)
+  if (process.env.PAGESPEED_API_KEY) {
+    try {
+      console.log(`[Perf] Using PageSpeed Insights API for: ${url}`);
+      const result = await analyzeWithPageSpeed(url);
+      if (result && !result.error) {
+        return result;
+      }
+      console.log('[Perf] PageSpeed API failed, falling back to Playwright');
+    } catch (error) {
+      console.error('[Perf] PageSpeed API error:', error.message);
+    }
+  }
+  
+  // Fallback to Playwright-based analysis
+  console.log(`[Perf] Using Playwright analysis for: ${url}`);
+  return analyzeWithPlaywright(url);
+}
+
+/**
+ * Analyze using Google PageSpeed Insights API
+ */
+async function analyzeWithPageSpeed(url) {
+  const apiKey = process.env.PAGESPEED_API_KEY;
+  const apiUrl = `https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&key=${apiKey}&category=performance&category=accessibility&category=best-practices&category=seo&strategy=mobile`;
+  
+  const response = await fetch(apiUrl);
+  
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(error.error?.message || `API returned ${response.status}`);
+  }
+  
+  const data = await response.json();
+  const lighthouse = data.lighthouseResult;
+  
+  if (!lighthouse) {
+    throw new Error('No Lighthouse data in response');
+  }
+  
+  // Extract scores (0-100)
+  const categories = lighthouse.categories || {};
+  const audits = lighthouse.audits || {};
+  
+  // Core Web Vitals from audits
+  const fcp = audits['first-contentful-paint']?.numericValue || 0;
+  const lcp = audits['largest-contentful-paint']?.numericValue || 0;
+  const cls = audits['cumulative-layout-shift']?.numericValue || 0;
+  const tbt = audits['total-blocking-time']?.numericValue || 0;
+  const si = audits['speed-index']?.numericValue || 0;
+  const tti = audits['interactive']?.numericValue || 0;
+  
+  // Resource metrics
+  const totalByteWeight = audits['total-byte-weight']?.numericValue || 0;
+  const networkRequests = audits['network-requests']?.details?.items?.length || 0;
+  
+  // Build results
+  const results = {
+    url,
+    timestamp: new Date().toISOString(),
+    source: 'lighthouse',
+    score: Math.round((categories.performance?.score || 0) * 100),
+    scores: {
+      performance: Math.round((categories.performance?.score || 0) * 100),
+      accessibility: Math.round((categories.accessibility?.score || 0) * 100),
+      bestPractices: Math.round((categories['best-practices']?.score || 0) * 100),
+      seo: Math.round((categories.seo?.score || 0) * 100)
+    },
+    metrics: {
+      fcp: Math.round(fcp),
+      lcp: Math.round(lcp),
+      cls: parseFloat(cls.toFixed(3)),
+      tbt: Math.round(tbt),
+      si: Math.round(si),
+      tti: Math.round(tti),
+      totalSize: totalByteWeight,
+      totalSizeFormatted: formatBytes(totalByteWeight),
+      totalRequests: networkRequests
+    },
+    recommendations: []
+  };
+  
+  // Extract failed audits as recommendations
+  const auditOrder = [
+    'render-blocking-resources',
+    'uses-responsive-images',
+    'offscreen-images',
+    'unminified-css',
+    'unminified-javascript',
+    'unused-css-rules',
+    'unused-javascript',
+    'uses-optimized-images',
+    'uses-webp-images',
+    'uses-text-compression',
+    'uses-rel-preconnect',
+    'server-response-time',
+    'redirects',
+    'uses-rel-preload',
+    'efficient-animated-content',
+    'duplicated-javascript',
+    'legacy-javascript',
+    'dom-size',
+    'critical-request-chains',
+    'bootup-time',
+    'mainthread-work-breakdown',
+    'font-display',
+    'third-party-summary'
+  ];
+  
+  for (const auditId of auditOrder) {
+    const audit = audits[auditId];
+    if (audit && audit.score !== null && audit.score < 0.9) {
+      const impact = audit.score < 0.5 ? 'high' : audit.score < 0.75 ? 'medium' : 'low';
+      results.recommendations.push({
+        type: audit.score < 0.5 ? 'critical' : 'warning',
+        title: audit.title,
+        description: audit.description?.replace(/<[^>]*>/g, '') || '',
+        impact,
+        savings: audit.details?.overallSavingsMs ? `${Math.round(audit.details.overallSavingsMs)}ms` : null
+      });
+    }
+    
+    if (results.recommendations.length >= 8) break;
+  }
+  
+  // Add Core Web Vitals status
+  results.coreWebVitals = {
+    fcp: { value: results.metrics.fcp, rating: getFcpRating(results.metrics.fcp) },
+    lcp: { value: results.metrics.lcp, rating: getLcpRating(results.metrics.lcp) },
+    cls: { value: results.metrics.cls, rating: getClsRating(results.metrics.cls) },
+    tbt: { value: results.metrics.tbt, rating: getTbtRating(results.metrics.tbt) }
+  };
+  
+  return results;
+}
+
+// Rating functions based on Google's thresholds
+function getFcpRating(ms) {
+  if (ms <= 1800) return 'good';
+  if (ms <= 3000) return 'needs-improvement';
+  return 'poor';
+}
+
+function getLcpRating(ms) {
+  if (ms <= 2500) return 'good';
+  if (ms <= 4000) return 'needs-improvement';
+  return 'poor';
+}
+
+function getClsRating(value) {
+  if (value <= 0.1) return 'good';
+  if (value <= 0.25) return 'needs-improvement';
+  return 'poor';
+}
+
+function getTbtRating(ms) {
+  if (ms <= 200) return 'good';
+  if (ms <= 600) return 'needs-improvement';
+  return 'poor';
+}
+
+/**
+ * Fallback: Analyze using Playwright (when API unavailable)
+ */
+async function analyzeWithPlaywright(url) {
   const browser = await chromium.launch({
     headless: true,
     args: [
@@ -14,7 +180,6 @@ async function analyze(url) {
       '--single-process',
       '--no-zygote',
       '--disable-extensions',
-      // Memory optimization
       '--disable-background-networking',
       '--disable-default-apps',
       '--disable-sync',
@@ -29,6 +194,7 @@ async function analyze(url) {
   const results = {
     url,
     timestamp: new Date().toISOString(),
+    source: 'playwright',
     score: 0,
     metrics: {},
     resources: {},
@@ -39,13 +205,10 @@ async function analyze(url) {
     const context = await browser.newContext();
     const page = await context.newPage();
 
-    // Enable performance tracking
     await page.coverage.startJSCoverage();
     await page.coverage.startCSSCoverage();
 
-    // Track network requests with better size tracking
     const requests = [];
-    const responseData = new Map();
     
     page.on('request', req => {
       requests.push({
@@ -61,231 +224,96 @@ async function analyze(url) {
         req.status = res.status();
         req.endTime = Date.now();
         req.duration = req.endTime - req.startTime;
-        
-        // Try to get actual size from headers or body
         const contentLength = res.headers()['content-length'];
-        if (contentLength) {
-          req.size = parseInt(contentLength);
-        } else {
-          // For responses without content-length, try to get body size
-          try {
-            const body = await res.body().catch(() => null);
-            req.size = body ? body.length : 0;
-          } catch {
-            req.size = 0;
-          }
-        }
+        req.size = contentLength ? parseInt(contentLength) : 0;
       }
     });
 
-    // Navigate and measure
     const startTime = Date.now();
-    
     await page.goto(url, { waitUntil: 'load', timeout: 30000 });
     const loadTime = Date.now() - startTime;
 
-    // Wait for network idle (important for SPAs/dynamic sites)
     await page.waitForLoadState('networkidle', { timeout: 15000 }).catch(() => {});
-    const networkIdleTime = Date.now() - startTime;
+    await page.waitForTimeout(2000);
 
-    // For dynamic sites/SPAs, wait for content to render
-    await page.waitForTimeout(2500);
-
-    // Get performance timing using modern Navigation Timing API (Level 2)
     const performanceTiming = await page.evaluate(() => {
       return new Promise((resolve) => {
-        // Use modern PerformanceNavigationTiming API
-        const navEntries = performance.getEntriesByType('navigation');
-        const navTiming = navEntries.length > 0 ? navEntries[0] : null;
-        
-        // Fallback to deprecated timing API
-        const legacyTiming = performance.timing;
-        
-        // Get paint entries
         const paint = performance.getEntriesByType('paint');
         const fcp = paint.find(p => p.name === 'first-contentful-paint')?.startTime || 0;
-        const fp = paint.find(p => p.name === 'first-paint')?.startTime || 0;
         
         let lcpValue = 0;
-        let clsValue = 0;
-        
-        // Get existing LCP entries (buffered)
         const existingLcp = performance.getEntriesByType('largest-contentful-paint');
         if (existingLcp.length > 0) {
           lcpValue = existingLcp[existingLcp.length - 1].startTime;
         }
         
-        // Get existing CLS entries (buffered)
+        let clsValue = 0;
         const layoutShifts = performance.getEntriesByType('layout-shift');
         for (const entry of layoutShifts) {
-          if (!entry.hadRecentInput) {
-            clsValue += entry.value;
-          }
+          if (!entry.hadRecentInput) clsValue += entry.value;
         }
 
-        // Set up observers for any new entries
-        let lcpObserver, clsObserver;
-        
-        try {
-          lcpObserver = new PerformanceObserver((list) => {
-            const entries = list.getEntries();
-            if (entries.length > 0) {
-              lcpValue = Math.max(lcpValue, entries[entries.length - 1].startTime);
-            }
-          });
-          lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
-        } catch (e) {}
-        
-        try {
-          clsObserver = new PerformanceObserver((list) => {
-            for (const entry of list.getEntries()) {
-              if (!entry.hadRecentInput) {
-                clsValue += entry.value;
-              }
-            }
-          });
-          clsObserver.observe({ type: 'layout-shift', buffered: true });
-        } catch (e) {}
-
-        // Wait to capture metrics
         setTimeout(() => {
-          if (lcpObserver) lcpObserver.disconnect();
-          if (clsObserver) clsObserver.disconnect();
-          
-          // Calculate timing values using modern API with fallback
-          let ttfb, domContentLoaded, dns, tcp, download, domParsing;
-          
-          if (navTiming) {
-            // Modern Navigation Timing API (Level 2)
-            ttfb = navTiming.responseStart - navTiming.requestStart;
-            domContentLoaded = navTiming.domContentLoadedEventEnd;
-            dns = navTiming.domainLookupEnd - navTiming.domainLookupStart;
-            tcp = navTiming.connectEnd - navTiming.connectStart;
-            download = navTiming.responseEnd - navTiming.responseStart;
-            domParsing = navTiming.domInteractive - navTiming.responseEnd;
-          } else {
-            // Fallback to legacy timing API
-            const navStart = legacyTiming.navigationStart;
-            ttfb = legacyTiming.responseStart - legacyTiming.requestStart;
-            domContentLoaded = legacyTiming.domContentLoadedEventEnd - navStart;
-            dns = legacyTiming.domainLookupEnd - legacyTiming.domainLookupStart;
-            tcp = legacyTiming.connectEnd - legacyTiming.connectStart;
-            download = legacyTiming.responseEnd - legacyTiming.responseStart;
-            domParsing = legacyTiming.domInteractive - legacyTiming.responseEnd;
-          }
-          
-          // Fallback for LCP if not captured
-          if (lcpValue === 0 || lcpValue < 0) {
-            // Estimate LCP from FCP or DOM timing
-            if (fcp > 0) {
-              lcpValue = fcp * 1.3; // LCP typically ~30% after FCP
-            } else if (domContentLoaded > 0) {
-              lcpValue = domContentLoaded * 0.8;
-            }
-          }
-          
-          // Ensure positive values
+          if (lcpValue === 0 && fcp > 0) lcpValue = fcp * 1.3;
           resolve({
-            dns: Math.max(0, dns || 0),
-            tcp: Math.max(0, tcp || 0),
-            ttfb: Math.max(0, ttfb || 0),
-            download: Math.max(0, download || 0),
-            domParsing: Math.max(0, domParsing || 0),
-            domContentLoaded: Math.max(0, domContentLoaded || 0),
-            firstPaint: Math.max(0, fp || 0),
-            firstContentfulPaint: Math.max(0, fcp || 0),
-            largestContentfulPaint: Math.max(0, lcpValue || 0),
-            cumulativeLayoutShift: Math.max(0, clsValue || 0)
+            fcp: Math.max(0, fcp),
+            lcp: Math.max(0, lcpValue),
+            cls: Math.max(0, clsValue)
           });
-        }, 1000);
+        }, 500);
       });
     });
 
-    // CLS is already captured in performanceTiming
-    const cls = performanceTiming.cumulativeLayoutShift;
-
-    // Get coverage data
     const jsCoverage = await page.coverage.stopJSCoverage();
     const cssCoverage = await page.coverage.stopCSSCoverage();
 
-    // Calculate unused code
     let totalJsBytes = 0, usedJsBytes = 0;
     for (const entry of jsCoverage) {
       totalJsBytes += entry.text.length;
-      for (const range of entry.ranges) {
-        usedJsBytes += range.end - range.start;
-      }
+      for (const range of entry.ranges) usedJsBytes += range.end - range.start;
     }
 
     let totalCssBytes = 0, usedCssBytes = 0;
     for (const entry of cssCoverage) {
       totalCssBytes += entry.text.length;
-      for (const range of entry.ranges) {
-        usedCssBytes += range.end - range.start;
-      }
+      for (const range of entry.ranges) usedCssBytes += range.end - range.start;
     }
 
-    // Analyze resources
-    const resourcesByType = {};
     let totalSize = 0;
+    const resourcesByType = {};
     for (const req of requests) {
       if (!resourcesByType[req.type]) {
-        resourcesByType[req.type] = { count: 0, size: 0, avgDuration: 0, durations: [] };
+        resourcesByType[req.type] = { count: 0, size: 0 };
       }
       resourcesByType[req.type].count++;
       resourcesByType[req.type].size += req.size || 0;
-      if (req.duration) {
-        resourcesByType[req.type].durations.push(req.duration);
-      }
       totalSize += req.size || 0;
     }
 
-    // Calculate averages
-    for (const type in resourcesByType) {
-      const durations = resourcesByType[type].durations;
-      resourcesByType[type].avgDuration = durations.length > 0 
-        ? Math.round(durations.reduce((a, b) => a + b, 0) / durations.length)
-        : 0;
-      delete resourcesByType[type].durations;
-    }
-
-    // Build metrics
     results.metrics = {
       loadTime: Math.round(loadTime),
-      networkIdleTime: Math.round(networkIdleTime),
-      ttfb: Math.round(performanceTiming.ttfb),
-      fcp: Math.round(performanceTiming.firstContentfulPaint),
-      lcp: Math.round(performanceTiming.largestContentfulPaint),
-      cls: parseFloat(cls.toFixed(3)),
-      domContentLoaded: Math.round(performanceTiming.domContentLoaded),
+      fcp: Math.round(performanceTiming.fcp),
+      lcp: Math.round(performanceTiming.lcp),
+      cls: parseFloat(performanceTiming.cls.toFixed(3)),
       totalRequests: requests.length,
-      totalSize: totalSize,
+      totalSize,
       totalSizeFormatted: formatBytes(totalSize)
     };
 
-    // Code coverage
     results.coverage = {
-      js: {
-        total: totalJsBytes,
-        used: usedJsBytes,
-        unused: totalJsBytes - usedJsBytes,
-        usedPercent: totalJsBytes > 0 ? Math.round((usedJsBytes / totalJsBytes) * 100) : 100
-      },
-      css: {
-        total: totalCssBytes,
-        used: usedCssBytes,
-        unused: totalCssBytes - usedCssBytes,
-        usedPercent: totalCssBytes > 0 ? Math.round((usedCssBytes / totalCssBytes) * 100) : 100
-      }
+      js: { total: totalJsBytes, used: usedJsBytes, usedPercent: totalJsBytes > 0 ? Math.round((usedJsBytes / totalJsBytes) * 100) : 100 },
+      css: { total: totalCssBytes, used: usedCssBytes, usedPercent: totalCssBytes > 0 ? Math.round((usedCssBytes / totalCssBytes) * 100) : 100 }
     };
 
     results.resources = resourcesByType;
-
-    // Calculate score (0-100)
     results.score = calculateScore(results.metrics, results.coverage);
-
-    // Generate recommendations
     results.recommendations = generateRecommendations(results);
+    
+    results.coreWebVitals = {
+      fcp: { value: results.metrics.fcp, rating: getFcpRating(results.metrics.fcp) },
+      lcp: { value: results.metrics.lcp, rating: getLcpRating(results.metrics.lcp) },
+      cls: { value: results.metrics.cls, rating: getClsRating(results.metrics.cls) }
+    };
 
     await context.close();
   } catch (error) {
@@ -300,181 +328,45 @@ async function analyze(url) {
 
 function calculateScore(metrics, coverage) {
   let score = 100;
-  let validMetrics = 0;
-  let totalDeductions = 0;
+  
+  if (metrics.fcp > 3000) score -= 25;
+  else if (metrics.fcp > 1800) score -= 15;
+  else if (metrics.fcp > 1000) score -= 5;
 
-  // FCP scoring (target: < 1.8s)
-  if (metrics.fcp > 0) {
-    validMetrics++;
-    if (metrics.fcp > 3000) totalDeductions += 25;
-    else if (metrics.fcp > 1800) totalDeductions += 15;
-    else if (metrics.fcp > 1000) totalDeductions += 5;
-  }
+  if (metrics.lcp > 4000) score -= 25;
+  else if (metrics.lcp > 2500) score -= 15;
+  else if (metrics.lcp > 1500) score -= 5;
 
-  // LCP scoring (target: < 2.5s)
-  if (metrics.lcp > 0) {
-    validMetrics++;
-    if (metrics.lcp > 4000) totalDeductions += 25;
-    else if (metrics.lcp > 2500) totalDeductions += 15;
-    else if (metrics.lcp > 1500) totalDeductions += 5;
-  }
+  if (metrics.cls > 0.25) score -= 20;
+  else if (metrics.cls > 0.1) score -= 10;
 
-  // CLS scoring (target: < 0.1)
-  // CLS of 0 is valid and good
-  validMetrics++;
-  if (metrics.cls > 0.25) totalDeductions += 20;
-  else if (metrics.cls > 0.1) totalDeductions += 10;
+  if (metrics.totalSize > 5000000) score -= 15;
+  else if (metrics.totalSize > 2000000) score -= 8;
 
-  // TTFB scoring (target: < 600ms)
-  if (metrics.ttfb > 0) {
-    validMetrics++;
-    if (metrics.ttfb > 1500) totalDeductions += 15;
-    else if (metrics.ttfb > 600) totalDeductions += 8;
-  }
-
-  // Total size scoring (target: < 2MB)
-  if (metrics.totalSize > 0) {
-    validMetrics++;
-    if (metrics.totalSize > 5000000) totalDeductions += 15;
-    else if (metrics.totalSize > 2000000) totalDeductions += 8;
-  }
-
-  // Unused code penalty
-  if (coverage.js.total > 0) {
-    validMetrics++;
-    if (coverage.js.usedPercent < 50) totalDeductions += 10;
-    else if (coverage.js.usedPercent < 70) totalDeductions += 5;
-  }
-
-  // Load time as fallback metric for dynamic sites
-  if (metrics.loadTime > 0) {
-    validMetrics++;
-    if (metrics.loadTime > 5000) totalDeductions += 20;
-    else if (metrics.loadTime > 3000) totalDeductions += 10;
-    else if (metrics.loadTime > 2000) totalDeductions += 5;
-  }
-
-  // If we have very few valid metrics, use load time more heavily
-  if (validMetrics < 3 && metrics.loadTime > 0) {
-    // Fallback scoring based primarily on load time
-    score = 100;
-    if (metrics.loadTime > 8000) score = 30;
-    else if (metrics.loadTime > 5000) score = 50;
-    else if (metrics.loadTime > 3000) score = 70;
-    else if (metrics.loadTime > 2000) score = 85;
-    else score = 95;
-    
-    // Still apply some deductions from other metrics
-    score -= Math.min(totalDeductions, 30);
-  } else {
-    score -= totalDeductions;
-  }
+  if (coverage?.js?.usedPercent < 50) score -= 10;
+  else if (coverage?.js?.usedPercent < 70) score -= 5;
 
   return Math.max(0, Math.min(100, score));
 }
 
 function generateRecommendations(results) {
   const recs = [];
-  const { metrics, coverage, resources } = results;
+  const { metrics, coverage } = results;
 
-  // Check if we had trouble capturing metrics (common with dynamic sites)
-  if (metrics.fcp === 0 && metrics.lcp === 0) {
-    recs.push({
-      type: 'info',
-      title: 'Limited Metrics Available',
-      description: 'Some performance metrics could not be captured. This is common with highly dynamic sites or SPAs. Load time and resource metrics are still available.',
-      impact: 'low'
-    });
-  }
-
-  // FCP recommendations
   if (metrics.fcp > 1800) {
-    recs.push({
-      type: 'critical',
-      title: 'Improve First Contentful Paint',
-      description: `FCP is ${metrics.fcp}ms (target: <1.8s). Consider reducing render-blocking resources.`,
-      impact: 'high'
-    });
+    recs.push({ type: 'critical', title: 'Improve First Contentful Paint', description: `FCP is ${metrics.fcp}ms (target: <1.8s)`, impact: 'high' });
   }
-
-  // LCP recommendations
   if (metrics.lcp > 2500) {
-    recs.push({
-      type: 'critical',
-      title: 'Optimize Largest Contentful Paint',
-      description: `LCP is ${metrics.lcp}ms (target: <2.5s). Optimize images and reduce server response time.`,
-      impact: 'high'
-    });
+    recs.push({ type: 'critical', title: 'Optimize Largest Contentful Paint', description: `LCP is ${metrics.lcp}ms (target: <2.5s)`, impact: 'high' });
   }
-
-  // CLS recommendations
   if (metrics.cls > 0.1) {
-    recs.push({
-      type: 'warning',
-      title: 'Reduce Layout Shift',
-      description: `CLS is ${metrics.cls} (target: <0.1). Add size attributes to images and avoid inserting content above existing content.`,
-      impact: 'medium'
-    });
+    recs.push({ type: 'warning', title: 'Reduce Layout Shift', description: `CLS is ${metrics.cls} (target: <0.1)`, impact: 'medium' });
   }
-
-  // TTFB recommendations
-  if (metrics.ttfb > 600) {
-    recs.push({
-      type: 'warning',
-      title: 'Reduce Server Response Time',
-      description: `TTFB is ${metrics.ttfb}ms (target: <600ms). Consider using a CDN or optimizing server-side code.`,
-      impact: 'medium'
-    });
+  if (coverage?.js?.usedPercent < 70) {
+    recs.push({ type: 'suggestion', title: 'Remove Unused JavaScript', description: `Only ${coverage.js.usedPercent}% of JS is used`, impact: 'medium' });
   }
-
-  // Image optimization
-  if (resources.image && resources.image.size > 500000) {
-    recs.push({
-      type: 'suggestion',
-      title: 'Optimize Images',
-      description: `Images total ${formatBytes(resources.image.size)}. Use WebP format and lazy loading.`,
-      impact: 'medium'
-    });
-  }
-
-  // JavaScript optimization
-  if (coverage.js.usedPercent < 70) {
-    recs.push({
-      type: 'suggestion',
-      title: 'Remove Unused JavaScript',
-      description: `Only ${coverage.js.usedPercent}% of JavaScript is used. Consider code splitting and tree shaking.`,
-      impact: 'medium'
-    });
-  }
-
-  // CSS optimization
-  if (coverage.css.usedPercent < 50) {
-    recs.push({
-      type: 'suggestion',
-      title: 'Remove Unused CSS',
-      description: `Only ${coverage.css.usedPercent}% of CSS is used. Use PurgeCSS or similar tools.`,
-      impact: 'low'
-    });
-  }
-
-  // Too many requests
-  if (metrics.totalRequests > 50) {
-    recs.push({
-      type: 'suggestion',
-      title: 'Reduce HTTP Requests',
-      description: `${metrics.totalRequests} requests made. Bundle resources and use HTTP/2.`,
-      impact: 'medium'
-    });
-  }
-
-  // Large page size
   if (metrics.totalSize > 2000000) {
-    recs.push({
-      type: 'warning',
-      title: 'Reduce Page Size',
-      description: `Total page size is ${metrics.totalSizeFormatted}. Target under 2MB for better performance.`,
-      impact: 'high'
-    });
+    recs.push({ type: 'warning', title: 'Reduce Page Size', description: `Total size is ${metrics.totalSizeFormatted}`, impact: 'high' });
   }
 
   return recs;
