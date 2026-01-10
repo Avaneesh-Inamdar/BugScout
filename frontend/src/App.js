@@ -637,11 +637,39 @@ function App() {
 
   const presets = [
     { id: 'auto', name: 'Auto Detect', icon: '🤖', desc: 'AI analyzes the page' },
+    { id: 'journey', name: 'Full Journey', icon: '🚀', desc: 'End-to-end user flow' },
     { id: 'login', name: 'Login Flow', icon: '🔐', desc: 'Email, password, submit' },
     { id: 'signup', name: 'Signup Flow', icon: '📝', desc: 'Registration forms' },
     { id: 'checkout', name: 'Checkout', icon: '🛒', desc: 'Payment flows' },
     { id: 'search', name: 'Search', icon: '🔍', desc: 'Search functionality' }
   ];
+
+  // Generate journey test (comprehensive end-to-end)
+  const generateJourneyTest = async () => {
+    if (!url || !user) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/journey-test`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url, userId: user.uid })
+      });
+      const data = await res.json();
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      setCurrentRun(data);
+      setActiveTab('editor');
+      fetchTestRuns(user.uid);
+    } catch (err) {
+      const errorMsg = err.message.includes('blocked') || err.message.includes('empty') 
+        ? `This website has bot protection and cannot be tested automatically. Try a different URL or a site you own.`
+        : `Failed to generate journey test: ${err.message}`;
+      alert(errorMsg);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className={`app ${darkMode ? 'dark' : ''}`}>
@@ -1194,10 +1222,10 @@ function App() {
 
             <button 
               className="btn btn-primary btn-large btn-full"
-              onClick={() => generateTests()}
+              onClick={() => testPreset === 'journey' ? generateJourneyTest() : generateTests()}
               disabled={loading || !url}
             >
-              {loading ? <><span className="spinner"></span> Analyzing Page...</> : '🔬 Generate Test Plan'}
+              {loading ? <><span className="spinner"></span> Analyzing Page...</> : testPreset === 'journey' ? '🚀 Generate Full Journey Test' : '🔬 Generate Test Plan'}
             </button>
           </div>
         )}
@@ -1264,10 +1292,16 @@ function App() {
               <span className={`status-badge ${getStatusClass(currentRun.status || 'pending')}`}>
                 {(currentRun.status || 'pending').replace(/_/g, ' ')}
               </span>
+              {currentRun.isJourneyTest && (
+                <span className="meta-item journey-badge">🚀 Journey Test</span>
+              )}
               <span className="meta-item">📄 {currentRun.pageData?.pageType || 'Unknown'} page</span>
               <span className="meta-item">🧪 {currentRun.tests?.length || 0} tests</span>
               {currentRun.confidence && (
                 <span className="meta-item">🎯 {(currentRun.confidence * 100).toFixed(0)}% confidence</span>
+              )}
+              {currentRun.detectedFlows?.length > 0 && (
+                <span className="meta-item">🔄 Flows: {currentRun.detectedFlows.join(' → ')}</span>
               )}
               {currentRun.hasDetailedFlow && (
                 <span className="meta-item flow-badge">📸 Flow View Available</span>

@@ -13,6 +13,7 @@ const testSuggester = require('./services/testSuggester');
 const visualDiff = require('./services/visualDiff');
 const performanceAnalyzer = require('./services/performanceAnalyzer');
 const flowRecorder = require('./services/flowRecorder');
+const journeyTestGenerator = require('./services/journeyTestGenerator');
 
 const app = express();
 app.use(cors());
@@ -242,6 +243,50 @@ app.post('/api/performance-audit', async (req, res) => {
     res.json(results);
   } catch (error) {
     console.error('Performance audit error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// End-to-End Journey Test - Generate comprehensive user journey
+app.post('/api/journey-test', async (req, res) => {
+  try {
+    const { url, userId } = req.body;
+    if (!url) {
+      return res.status(400).json({ error: 'URL is required' });
+    }
+
+    console.log(`[Journey] Generating journey test for: ${url}`);
+    const journeyData = await journeyTestGenerator.generateJourneyTest(url);
+    
+    // Create a test run with the journey test
+    const runId = uuidv4();
+    const testRun = {
+      id: runId,
+      url,
+      userId: userId || null,
+      status: 'pending_review',
+      createdAt: new Date().toISOString(),
+      isJourneyTest: true,
+      journeyName: journeyData.journey_name,
+      detectedFlows: journeyData.detected_flows,
+      pageData: {
+        pageType: journeyData.page_type,
+        elements: journeyData.pageData?.elements || []
+      },
+      tests: [{
+        ...journeyData.test,
+        status: 'pending',
+        screenshots: [],
+        flowSteps: []
+      }],
+      confidence: 0.8
+    };
+    
+    await firestoreService.saveTestRun(testRun);
+    
+    res.json(testRun);
+  } catch (error) {
+    console.error('Journey test generation error:', error);
     res.status(500).json({ error: error.message });
   }
 });

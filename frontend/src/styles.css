@@ -397,6 +397,14 @@ h1 {
   color: var(--text-secondary);
 }
 
+.meta-item.journey-badge {
+  background: linear-gradient(135deg, var(--accent), #a855f7);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-weight: 500;
+}
+
 /* Results Summary Banner */
 .results-summary {
   display: flex;
