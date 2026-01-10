@@ -8,54 +8,51 @@ const pageInspector = require('./pageInspector');
 
 const SMART_JOURNEY_PROMPT = `You are an expert QA tester simulating a REAL USER journey on a website. Your goal is to test the COMPLETE user experience from start to finish.
 
-CRITICAL: FOLLOW THE NATURAL USER JOURNEY ORDER:
-1. SIGNUP FIRST - If there's a signup/register option, create a new account first
-2. THEN LOGIN - After signup, login with the same credentials you just created
-3. THEN EXPLORE - Browse products, search, navigate the site
-4. THEN TAKE ACTION - Add to cart, fill forms, interact with features
-5. FINALLY COMPLETE - Reach the end goal (checkout, submit, complete purchase - but STOP before real payment)
+CRITICAL RULES FOR SINGLE-PAGE APPS (SPAs):
+- Many modern websites show login/signup on the SAME page with a toggle link
+- When you click "Create account" or "Sign up" link, the FORM CHANGES but the page doesn't reload
+- After clicking the toggle, you must use the NEW form's selectors, not the old ones
+- Look for patterns like: "Don't have an account? Sign up" or "Already have an account? Login"
+- The signup form will have DIFFERENT input IDs than the login form
 
-THINK LIKE A NEW USER:
-- A new user visits the site for the first time
-- They need to create an account before they can do anything
-- After creating account, they login
-- Then they explore what the site offers
-- Finally they complete their goal (buy something, submit a form, etc.)
+CRITICAL: FOLLOW THE NATURAL USER JOURNEY ORDER:
+1. SIGNUP FIRST - If there's a signup/register option or link, click it first to create a new account
+2. FILL SIGNUP FORM - Use the signup form's input fields (these are DIFFERENT from login fields)
+3. SUBMIT SIGNUP - Click the signup/register button
+4. THEN LOGIN - After signup succeeds, go back to login and use the same credentials
+5. THEN EXPLORE - Browse products, search, navigate the site
+
+IMPORTANT - FORM FIELD IDENTIFICATION:
+- Login forms typically have: email/username input, password input, "Sign In" button
+- Signup forms typically have: name input, email input, password input, confirm password, "Sign Up" button
+- If you see "#loginEmail" that's for LOGIN form
+- If you see "#signupEmail" or "#registerEmail" that's for SIGNUP form
+- NEVER use login form fields when filling signup form and vice versa
 
 ANALYZE THE PAGE CAREFULLY:
-1. What is this website/page for? (e-commerce, social media, service, etc.)
-2. Is there a signup/register option? → Do that FIRST
-3. Is there a login option? → Do that AFTER signup
-4. What can users do after logging in? → Test those features
-5. What is the end goal? (purchase, booking, submission) → Reach that point
-
-IMPORTANT RULES:
-1. Use ONLY the exact CSS selectors provided in the elements list
-2. ALWAYS signup before login if both exist
-3. Use the SAME email/password for signup and login
-4. Fill forms with realistic test data appropriate for each field
-5. Follow the natural user flow - don't skip steps
-6. Include wait steps after actions that trigger page changes
-7. Stop before any real payment/transaction
-8. If you see "Sign Up" and "Login" links, click Sign Up first
+1. Is this a login page with a "Sign up" or "Create account" link? → Click that link FIRST
+2. After clicking signup link, what NEW form fields appear? → Use THOSE selectors
+3. Look for input fields with "signup", "register", "new" in their IDs/names
+4. The signup form fields are DIFFERENT from login form fields
 
 TEST DATA TO USE (use these consistently):
 - Email: testuser{{timestamp}}@example.com (I'll replace {{timestamp}})
 - Password: TestPass123!
-- Name: John Smith
-- First Name: John
-- Last Name: Smith
-- Phone: 555-123-4567
-- Address: 123 Test Street
-- City: Test City
-- State: California
-- ZIP: 90210
-- Country: United States
-- Card Number: 4111111111111111 (test card)
-- Card Expiry: 12/28
-- Card CVV: 123
+- Name: Test User
+- First Name: Test
+- Last Name: User
 
-Return a JSON object with your analysis and COMPLETE user journey test:
+EXAMPLE FOR A TYPICAL LOGIN/SIGNUP PAGE:
+If you see a login form with a "Create one" or "Sign up" link:
+1. Click the "Create one" / "Sign up" link (this switches to signup form)
+2. Wait for form to change
+3. Fill the SIGNUP form fields (look for #signupEmail, #signupPassword, #signupName, etc.)
+4. Click the signup/register button
+5. Wait for success
+6. If redirected to login, fill LOGIN form fields (#loginEmail, #loginPassword)
+7. Click login button
+
+Return a JSON object with your analysis and test:
 {
   "page_analysis": {
     "purpose": "What this website/page is for",
@@ -64,7 +61,9 @@ Return a JSON object with your analysis and COMPLETE user journey test:
     "user_goal": "What a user ultimately wants to accomplish",
     "has_signup": true/false,
     "has_login": true/false,
-    "end_goal": "What the final action should be (checkout, submit, etc.)"
+    "is_spa_toggle": true/false,
+    "signup_link_selector": "selector to click to show signup form",
+    "login_link_selector": "selector to click to show login form"
   },
   "test": {
     "id": "journey_1",
@@ -73,32 +72,27 @@ Return a JSON object with your analysis and COMPLETE user journey test:
     "steps": [
       {
         "action": "click",
-        "target": "selector for signup link/button",
+        "target": "exact CSS selector from elements list",
         "value": null,
-        "reasoning": "First, navigate to signup page to create account"
-      },
-      {
-        "action": "type",
-        "target": "email input selector",
-        "value": "testuser@example.com",
-        "reasoning": "Enter email for new account"
+        "reasoning": "Why this step"
       }
     ],
-    "expected": "User can complete full journey from signup to [end goal]"
+    "expected": "User can complete full journey"
   },
-  "detected_flows": ["signup", "login", "browse", "cart", "checkout"],
+  "detected_flows": ["signup", "login"],
   "potential_issues": ["things that might fail"]
 }
 
 AVAILABLE ACTIONS:
-- type: Enter text (target: selector, value: text)
 - click: Click element (target: selector, value: null)
+- type: Enter text (target: selector, value: text to type)
+- clear: Clear input field before typing (target: selector, value: null)
+- wait: Pause for page/form changes (target: null, value: "2000" for 2 seconds)
 - select: Choose dropdown option (target: selector, value: option)
 - check: Check checkbox (target: selector, value: null)
-- wait: Pause (target: null, value: "2000" for 2 seconds)
-- hover: Mouse over (target: selector, value: null)
 - press: Keyboard key (target: selector, value: "Enter")
-- clear: Clear input (target: selector, value: null)
+
+CRITICAL: Only use selectors that EXACTLY match ones in the elements list below!
 
 NOW ANALYZE THIS PAGE AND CREATE A COMPLETE USER JOURNEY:
 `;
@@ -193,31 +187,75 @@ async function generateWithAI(pageContext) {
   const timestamp = Date.now();
   const testEmail = `testuser${timestamp}@example.com`;
   
+  // Identify if this looks like a login/signup toggle page
+  const hasLoginForm = pageContext.elements.some(e => 
+    e.selector?.includes('login') || e.name?.includes('login')
+  );
+  const hasSignupForm = pageContext.elements.some(e => 
+    e.selector?.includes('signup') || e.selector?.includes('register') || 
+    e.name?.includes('signup') || e.name?.includes('register')
+  );
+  const hasToggleLink = pageContext.elements.some(e => 
+    e.visibleText?.toLowerCase().includes('create') ||
+    e.visibleText?.toLowerCase().includes('sign up') ||
+    e.visibleText?.toLowerCase().includes('register') ||
+    e.visibleText?.toLowerCase().includes("don't have")
+  );
+  
+  // Group elements by form type for clarity
+  const loginElements = pageContext.elements.filter(e => 
+    e.selector?.toLowerCase().includes('login') || 
+    e.name?.toLowerCase().includes('login')
+  );
+  const signupElements = pageContext.elements.filter(e => 
+    e.selector?.toLowerCase().includes('signup') || 
+    e.selector?.toLowerCase().includes('register') ||
+    e.name?.toLowerCase().includes('signup') ||
+    e.name?.toLowerCase().includes('register')
+  );
+  
+  let formContext = '';
+  if (loginElements.length > 0) {
+    formContext += '\n\nLOGIN FORM ELEMENTS (use these ONLY for login):\n';
+    formContext += loginElements.map(e => `- ${e.selector} (${e.type || e.tagName})`).join('\n');
+  }
+  if (signupElements.length > 0) {
+    formContext += '\n\nSIGNUP FORM ELEMENTS (use these ONLY for signup):\n';
+    formContext += signupElements.map(e => `- ${e.selector} (${e.type || e.tagName})`).join('\n');
+  }
+  if (hasToggleLink) {
+    formContext += '\n\nNOTE: This appears to be a SINGLE PAGE with login/signup TOGGLE. ';
+    formContext += 'Click the signup link first, then use SIGNUP form fields (not login fields)!';
+  }
+  
   const prompt = SMART_JOURNEY_PROMPT + `
 URL: ${pageContext.url}
 Page Type Detected: ${pageContext.pageType}
 Page Title: ${pageContext.title}
 
-VISIBLE TEXT ON PAGE (read this to understand the website):
-${pageContext.visibleText.substring(0, 2500)}
+VISIBLE TEXT ON PAGE:
+${pageContext.visibleText.substring(0, 2000)}
 
 PAGE STATISTICS:
 - ${pageContext.summary.inputs} input fields
 - ${pageContext.summary.buttons} buttons
 - ${pageContext.summary.links} links
-- ${pageContext.summary.selects} dropdowns
-- ${pageContext.summary.checkboxes} checkboxes
+${formContext}
 
-ALL ELEMENTS ON PAGE (use these exact selectors):
+ALL AVAILABLE ELEMENTS (use EXACT selectors from this list):
 ${pageContext.elementDescriptions}
 
-REMEMBER:
-- Use email: ${testEmail}
-- Use password: TestPass123!
-- SIGNUP FIRST if available, then LOGIN with same credentials
-- Follow the complete user journey to the end goal
+TEST DATA:
+- Email: ${testEmail}
+- Password: TestPass123!
+- Name: Test User
 
-Create a comprehensive test that follows the FULL user journey from signup to the final goal.`;
+IMPORTANT: 
+1. If there's a "Create one" or "Sign up" link, click it FIRST
+2. After clicking, use SIGNUP form fields (like #signupEmail), NOT login fields (like #loginEmail)
+3. Each form has its own set of input fields - don't mix them up!
+
+Generate a test that properly handles the signup → login flow.`;
 
   const completion = await apiKeyManager.executeWithFallback(async (groq) => {
     return await groq.chat.completions.create({
@@ -255,24 +293,41 @@ Create a comprehensive test that follows the FULL user journey from signup to th
  */
 function validateAndFixSelectors(aiResult, elements) {
   const selectorSet = new Set(elements.map(e => e.selector));
-  const elementMap = {};
+  
+  // Build multiple lookup maps for flexible matching
+  const elementsBySelector = {};
+  const elementsByName = {};
+  const elementsByType = {};
+  const elementsByText = {};
+  
   elements.forEach(e => {
-    elementMap[e.selector] = e;
-    if (e.name) elementMap[e.name.toLowerCase()] = e;
-    if (e.placeholder) elementMap[e.placeholder.toLowerCase()] = e;
-    if (e.id) elementMap[e.id.toLowerCase()] = e;
-    if (e.type) elementMap[e.type.toLowerCase()] = e;
-    if (e.ariaLabel) elementMap[e.ariaLabel.toLowerCase()] = e;
+    elementsBySelector[e.selector] = e;
+    if (e.name) elementsByName[e.name.toLowerCase()] = e;
+    if (e.type) {
+      if (!elementsByType[e.type]) elementsByType[e.type] = [];
+      elementsByType[e.type].push(e);
+    }
+    if (e.visibleText) elementsByText[e.visibleText.toLowerCase().trim()] = e;
   });
   
+  // Separate login and signup elements for smart matching
+  const loginInputs = elements.filter(e => 
+    e.selector?.toLowerCase().includes('login') && 
+    (e.tagName === 'INPUT' || e.type)
+  );
+  const signupInputs = elements.filter(e => 
+    (e.selector?.toLowerCase().includes('signup') || e.selector?.toLowerCase().includes('register')) && 
+    (e.tagName === 'INPUT' || e.type)
+  );
+  
   if (aiResult.test?.steps) {
+    // Track which phase we're in (signup vs login)
+    let currentPhase = 'initial';
+    
     aiResult.test.steps = aiResult.test.steps
       .filter(step => {
-        // Remove steps with no action
         if (!step.action) return false;
-        // Keep wait steps even without target
         if (step.action === 'wait' || step.action === 'delay') return true;
-        // Remove steps with obviously invalid targets
         if (step.target === 'Select element...' || step.target === 'Select element') return false;
         if (!step.target && step.action !== 'wait') return false;
         return true;
@@ -281,43 +336,104 @@ function validateAndFixSelectors(aiResult, elements) {
         // Skip wait steps
         if (step.action === 'wait' || step.action === 'delay' || !step.target) return step;
         
-        // Clean up the target - remove any description text that got mixed in
+        // Track phase based on clicks
+        if (step.action === 'click') {
+          const targetLower = (step.target || '').toLowerCase();
+          const reasonLower = (step.reasoning || '').toLowerCase();
+          if (targetLower.includes('signup') || targetLower.includes('register') || 
+              targetLower.includes('create') || reasonLower.includes('signup')) {
+            currentPhase = 'signup';
+          } else if (targetLower.includes('login') || targetLower.includes('sign in') ||
+                     reasonLower.includes('login')) {
+            currentPhase = 'login';
+          }
+        }
+        
+        // Clean up the target
         let cleanTarget = step.target;
         
         // Fix malformed selectors like "#loginEmail: email_input [your@email.com]"
         if (cleanTarget.includes(':') && cleanTarget.includes('[') && !cleanTarget.startsWith('[')) {
-          // Extract just the ID part
           const idMatch = cleanTarget.match(/^#?([a-zA-Z][a-zA-Z0-9_-]*)/);
           if (idMatch) {
             cleanTarget = '#' + idMatch[1];
           }
         }
         
-        // Remove any trailing descriptions in brackets that aren't valid attribute selectors
+        // Remove trailing descriptions
         if (cleanTarget.includes(' [') && !cleanTarget.match(/\[[\w-]+=/)) {
           cleanTarget = cleanTarget.split(' [')[0].trim();
         }
         
-        // If selector is valid, keep it
+        // If selector exists, use it
         if (selectorSet.has(cleanTarget)) {
           return { ...step, target: cleanTarget };
         }
         
-        // Try to find matching element
+        // Try to find the right element based on context
         const targetLower = (step.target || '').toLowerCase();
         
-        // Try by exact selector match
-        const bySelector = elements.find(e => e.selector === step.target);
-        if (bySelector) return { ...step, target: bySelector.selector };
+        // For type actions, try to find the right input based on phase and type
+        if (step.action === 'type' || step.action === 'fill') {
+          const isEmailField = targetLower.includes('email') || step.value?.includes('@');
+          const isPasswordField = targetLower.includes('password');
+          const isNameField = targetLower.includes('name');
+          
+          // Choose from the right form based on current phase
+          const inputPool = currentPhase === 'signup' && signupInputs.length > 0 ? signupInputs :
+                           currentPhase === 'login' && loginInputs.length > 0 ? loginInputs :
+                           elements;
+          
+          if (isEmailField) {
+            const emailInput = inputPool.find(e => e.type === 'email' || e.selector?.includes('email'));
+            if (emailInput) return { ...step, target: emailInput.selector };
+          }
+          if (isPasswordField) {
+            const passInput = inputPool.find(e => e.type === 'password');
+            if (passInput) return { ...step, target: passInput.selector };
+          }
+          if (isNameField) {
+            const nameInput = inputPool.find(e => 
+              e.name?.toLowerCase().includes('name') || 
+              e.placeholder?.toLowerCase().includes('name') ||
+              e.selector?.includes('name')
+            );
+            if (nameInput) return { ...step, target: nameInput.selector };
+          }
+        }
         
-        // Try by ID
+        // For click actions, try to find by text
+        if (step.action === 'click') {
+          // Try exact text match first
+          const byText = elements.find(e => 
+            e.visibleText?.toLowerCase().trim() === targetLower.trim()
+          );
+          if (byText) return { ...step, target: byText.selector };
+          
+          // Try partial text match
+          const byPartialText = elements.find(e => 
+            e.visibleText?.toLowerCase().includes(targetLower) ||
+            targetLower.includes(e.visibleText?.toLowerCase() || '')
+          );
+          if (byPartialText) return { ...step, target: byPartialText.selector };
+          
+          // Try by button/link role with text
+          const byButtonText = elements.find(e => 
+            (e.role === 'button' || e.tagName === 'BUTTON' || e.tagName === 'A') &&
+            (e.visibleText?.toLowerCase().includes(targetLower.replace(/[^a-z]/g, '')) ||
+             targetLower.includes(e.visibleText?.toLowerCase() || ''))
+          );
+          if (byButtonText) return { ...step, target: byButtonText.selector };
+        }
+        
+        // Try by ID extraction
         const idMatch = step.target.match(/^#?([a-zA-Z][a-zA-Z0-9_-]*)/);
         if (idMatch) {
           const byId = elements.find(e => e.selector === '#' + idMatch[1]);
           if (byId) return { ...step, target: byId.selector };
         }
         
-        // Try by name
+        // Try by name attribute
         const byName = elements.find(e => e.name?.toLowerCase() === targetLower);
         if (byName) return { ...step, target: byName.selector };
         
@@ -328,57 +444,26 @@ function validateAndFixSelectors(aiResult, elements) {
         );
         if (byPlaceholder) return { ...step, target: byPlaceholder.selector };
         
-        // Try by visible text
-        const byText = elements.find(e => 
-          e.visibleText?.toLowerCase().includes(targetLower) ||
-          targetLower.includes(e.visibleText?.toLowerCase() || '')
-        );
-        if (byText) return { ...step, target: byText.selector };
-        
         // Try by aria-label
         const byAriaLabel = elements.find(e =>
-          e.ariaLabel?.toLowerCase().includes(targetLower) ||
-          targetLower.includes(e.ariaLabel?.toLowerCase() || '')
+          e.ariaLabel?.toLowerCase().includes(targetLower)
         );
         if (byAriaLabel) return { ...step, target: byAriaLabel.selector };
         
-        // Try by type for inputs
-        if (step.action === 'type') {
-          if (targetLower.includes('email')) {
-            const emailInput = elements.find(e => e.type === 'email' || e.role === 'email_input');
-            if (emailInput) return { ...step, target: emailInput.selector };
-          }
-          if (targetLower.includes('password')) {
-            const passInput = elements.find(e => e.type === 'password' || e.role === 'password_input');
-            if (passInput) return { ...step, target: passInput.selector };
-          }
-          if (targetLower.includes('name') || targetLower.includes('full')) {
-            const nameInput = elements.find(e => 
-              e.name?.toLowerCase().includes('name') || 
-              e.placeholder?.toLowerCase().includes('name')
-            );
-            if (nameInput) return { ...step, target: nameInput.selector };
-          }
-          if (targetLower.includes('phone') || targetLower.includes('tel')) {
-            const phoneInput = elements.find(e => e.type === 'tel' || e.role === 'phone_input');
-            if (phoneInput) return { ...step, target: phoneInput.selector };
-          }
-        }
-        
-        // Try by button text for clicks
-        if (step.action === 'click') {
-          const byButtonText = elements.find(e => 
-            (e.role === 'button' || e.tagName === 'BUTTON' || e.tagName === 'A') &&
-            (e.visibleText?.toLowerCase().includes(targetLower) || 
-             targetLower.includes(e.visibleText?.toLowerCase() || ''))
-          );
-          if (byButtonText) return { ...step, target: byButtonText.selector };
-        }
-        
-        // Keep original if no match found (will fail gracefully during execution)
-        console.log(`Could not fix selector: ${step.target}`);
+        console.log(`Could not fix selector: ${step.target} (phase: ${currentPhase})`);
         return { ...step, target: cleanTarget };
       });
+    
+    // Remove duplicate consecutive steps
+    aiResult.test.steps = aiResult.test.steps.filter((step, idx, arr) => {
+      if (idx === 0) return true;
+      const prev = arr[idx - 1];
+      // Remove if same action and target as previous
+      if (step.action === prev.action && step.target === prev.target && step.value === prev.value) {
+        return false;
+      }
+      return true;
+    });
   }
   
   return aiResult;
