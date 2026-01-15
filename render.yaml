@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: bugscout-backend
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: GOOGLE_APPLICATION_CREDENTIALS_JSON
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: GROQ_API_KEY_BACKUP
+        sync: false
+      - key: PAGESPEED_API_KEY
+        sync: false
